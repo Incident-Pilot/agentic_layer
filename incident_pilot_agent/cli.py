@@ -38,6 +38,24 @@ def _build_llm(name: str) -> LLMClient:
         from .llm.openai_client import OpenAILLMClient
 
         return OpenAILLMClient(api_key=config.OPENAI_API_KEY, model=config.OPENAI_MODEL)
+    if name == "gemini":
+        if not config.GEMINI_API_KEY:
+            print("error: --llm gemini requires GEMINI_API_KEY to be set", file=sys.stderr)
+            sys.exit(1)
+        from .llm.gemini_client import GeminiLLMClient
+
+        return GeminiLLMClient(api_key=config.GEMINI_API_KEY, model=config.GEMINI_MODEL)
+    if name == "openrouter":
+        if not config.OPENROUTER_API_KEY:
+            print("error: --llm openrouter requires OPENROUTER_API_KEY to be set", file=sys.stderr)
+            sys.exit(1)
+        from .llm.openai_client import OpenAILLMClient
+
+        return OpenAILLMClient(
+            api_key=config.OPENROUTER_API_KEY,
+            model=config.OPENROUTER_MODEL,
+            base_url=config.OPENROUTER_BASE_URL,
+        )
     raise ValueError(f"unknown --llm {name!r}")
 
 
@@ -46,6 +64,10 @@ def _default_llm_name() -> str:
         return "openai"
     if config.ANTHROPIC_API_KEY:
         return "anthropic"
+    if config.GEMINI_API_KEY:
+        return "gemini"
+    if config.OPENROUTER_API_KEY:
+        return "openrouter"
     return "fake"
 
 
@@ -123,7 +145,9 @@ def main(argv=None) -> None:
 
     run_parser = subparsers.add_parser("run", help="Run the investigation graph against a fixture incident")
     run_parser.add_argument("incident_id", help="Fixture incident id, e.g. inc-001-redis-cascade")
-    run_parser.add_argument("--llm", choices=["fake", "anthropic", "openai"], default=_default_llm_name())
+    run_parser.add_argument(
+        "--llm", choices=["fake", "anthropic", "openai", "gemini", "openrouter"], default=_default_llm_name()
+    )
     run_parser.add_argument("--fixtures-dir", type=Path, default=config.DEFAULT_FIXTURES_DIR)
     run_parser.add_argument("--trajectory-dir", type=Path, default=config.DEFAULT_TRAJECTORY_DIR)
     run_parser.add_argument("--max-iterations", type=int, default=config.DEFAULT_MAX_ITERATIONS)

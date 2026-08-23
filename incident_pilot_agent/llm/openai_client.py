@@ -58,8 +58,12 @@ def _to_openai_tools(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 class OpenAILLMClient(LLMClient):
-    def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
-        self._client = AsyncOpenAI(api_key=api_key)
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL, base_url: Optional[str] = None):
+        # base_url lets this same client target any OpenAI-Chat-Completions
+        # -compatible endpoint (e.g. OpenRouter at
+        # https://openrouter.ai/api/v1) without a separate client module --
+        # the wire format is identical, only the host and model id differ.
+        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self._model = model
 
     async def complete(
