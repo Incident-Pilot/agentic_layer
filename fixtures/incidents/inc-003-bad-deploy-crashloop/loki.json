@@ -1,0 +1,27 @@
+{
+  "buckets": {
+    "default": {
+      "resultType": "streams",
+      "result": [
+        {
+          "stream": {
+            "namespace": "cloudmart-prod",
+            "service": "notifications-worker",
+            "pod": "notifications-worker-9a2c-001",
+            "level": "error"
+          },
+          "values": [
+            [
+              "1787022140000000000",
+              "panic: required environment variable REQUIRED_QUEUE_URL is not set"
+            ],
+            [
+              "1787022160000000000",
+              "panic: required environment variable REQUIRED_QUEUE_URL is not set"
+            ]
+          ]
+        }
+      ]
+    }
+  }
+}

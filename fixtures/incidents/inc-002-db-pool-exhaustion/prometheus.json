@@ -1,0 +1,86 @@
+{
+  "buckets": {
+    "db_pool_active_connections": {
+      "resultType": "matrix",
+      "result": [
+        {
+          "metric": {
+            "__name__": "db_pool_active_connections",
+            "service": "orders-api",
+            "namespace": "cloudmart-prod",
+            "pod": "orders-api-33ab-11ff"
+          },
+          "values": [
+            [
+              1000,
+              "8"
+            ],
+            [
+              1100,
+              "15"
+            ],
+            [
+              1200,
+              "40"
+            ],
+            [
+              1300,
+              "72"
+            ],
+            [
+              1400,
+              "95"
+            ],
+            [
+              1500,
+              "100"
+            ]
+          ]
+        }
+      ]
+    },
+    "memory_working_set_bytes": {
+      "resultType": "matrix",
+      "result": [
+        {
+          "metric": {
+            "__name__": "memory_working_set_bytes",
+            "service": "orders-api",
+            "namespace": "cloudmart-prod",
+            "pod": "orders-api-33ab-11ff"
+          },
+          "values": [
+            [
+              1000,
+              "300000000"
+            ],
+            [
+              1100,
+              "301000000"
+            ],
+            [
+              1200,
+              "302000000"
+            ],
+            [
+              1300,
+              "303000000"
+            ],
+            [
+              1400,
+              "304000000"
+            ],
+            [
+              1500,
+              "305000000"
+            ]
+          ]
+        }
+      ]
+    },
+    "default": {
+      "resultType": "matrix",
+      "result": []
+    }
+  }
+}

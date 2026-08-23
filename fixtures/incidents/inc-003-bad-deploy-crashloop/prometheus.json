@@ -1,0 +1,47 @@
+{
+  "buckets": {
+    "pod_restarts": {
+      "resultType": "matrix",
+      "result": [
+        {
+          "metric": {
+            "__name__": "pod_restarts",
+            "service": "notifications-worker",
+            "namespace": "cloudmart-prod",
+            "pod": "notifications-worker-9a2c-001"
+          },
+          "values": [
+            [
+              1000,
+              "0"
+            ],
+            [
+              1100,
+              "2"
+            ],
+            [
+              1200,
+              "5"
+            ],
+            [
+              1300,
+              "8"
+            ],
+            [
+              1400,
+              "10"
+            ],
+            [
+              1500,
+              "12"
+            ]
+          ]
+        }
+      ]
+    },
+    "default": {
+      "resultType": "matrix",
+      "result": []
+    }
+  }
+}

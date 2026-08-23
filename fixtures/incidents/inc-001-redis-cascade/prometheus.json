@@ -1,0 +1,164 @@
+{
+  "buckets": {
+    "cpu_usage_seconds": {
+      "resultType": "matrix",
+      "result": [
+        {
+          "metric": {
+            "__name__": "cpu_usage_seconds",
+            "service": "checkout-service",
+            "namespace": "cloudmart-prod",
+            "pod": "checkout-service-7d9f-abc12"
+          },
+          "values": [
+            [
+              1000,
+              "0.42"
+            ],
+            [
+              1100,
+              "0.51"
+            ],
+            [
+              1200,
+              "1.1"
+            ],
+            [
+              1300,
+              "2.05"
+            ],
+            [
+              1400,
+              "2.9"
+            ],
+            [
+              1500,
+              "3.1"
+            ]
+          ]
+        }
+      ]
+    },
+    "latency_ms": {
+      "resultType": "matrix",
+      "result": [
+        {
+          "metric": {
+            "__name__": "latency_ms",
+            "service": "checkout-service",
+            "namespace": "cloudmart-prod",
+            "pod": "checkout-service-7d9f-abc12"
+          },
+          "values": [
+            [
+              1000,
+              "118"
+            ],
+            [
+              1100,
+              "140"
+            ],
+            [
+              1200,
+              "420"
+            ],
+            [
+              1300,
+              "1100"
+            ],
+            [
+              1400,
+              "1800"
+            ],
+            [
+              1500,
+              "2200"
+            ]
+          ]
+        }
+      ]
+    },
+    "http_error_rate": {
+      "resultType": "matrix",
+      "result": [
+        {
+          "metric": {
+            "__name__": "http_error_rate",
+            "service": "checkout-service",
+            "namespace": "cloudmart-prod",
+            "pod": "checkout-service-7d9f-abc12"
+          },
+          "values": [
+            [
+              1000,
+              "0.001"
+            ],
+            [
+              1100,
+              "0.002"
+            ],
+            [
+              1200,
+              "0.05"
+            ],
+            [
+              1300,
+              "0.15"
+            ],
+            [
+              1400,
+              "0.28"
+            ],
+            [
+              1500,
+              "0.35"
+            ]
+          ]
+        }
+      ]
+    },
+    "memory_working_set_bytes": {
+      "resultType": "matrix",
+      "result": [
+        {
+          "metric": {
+            "__name__": "memory_working_set_bytes",
+            "service": "checkout-service",
+            "namespace": "cloudmart-prod",
+            "pod": "checkout-service-7d9f-abc12"
+          },
+          "values": [
+            [
+              1000,
+              "512000000"
+            ],
+            [
+              1100,
+              "515000000"
+            ],
+            [
+              1200,
+              "510000000"
+            ],
+            [
+              1300,
+              "518000000"
+            ],
+            [
+              1400,
+              "513000000"
+            ],
+            [
+              1500,
+              "516000000"
+            ]
+          ]
+        }
+      ]
+    },
+    "default": {
+      "resultType": "matrix",
+      "result": []
+    }
+  }
+}

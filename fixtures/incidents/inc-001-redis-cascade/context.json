@@ -1,0 +1,180 @@
+{
+  "incident_id": "inc-001-redis-cascade",
+  "title": "Elevated latency and 5xx errors on checkout-service",
+  "description": "Multiple alerts fired within a few minutes of each other: CPU usage, P99 latency, and HTTP 5xx error rate all spiked on checkout-service, with error rate rising on order-service shortly after.",
+  "detected_at": "2026-08-22T14:10:00Z",
+  "severity": "critical",
+  "affected_services": [
+    "checkout-service",
+    "order-service"
+  ],
+  "affected_namespace": "cloudmart-prod",
+  "timeline": [
+    {
+      "timestamp": "2026-08-22T14:02:00Z",
+      "description": "checkout-service deployment rolled out",
+      "source": "deployment",
+      "provenance": "trusted"
+    },
+    {
+      "timestamp": "2026-08-22T14:04:30Z",
+      "description": "CPU usage alert fired for checkout-service",
+      "source": "alertmanager",
+      "provenance": "trusted"
+    },
+    {
+      "timestamp": "2026-08-22T14:05:15Z",
+      "description": "P99 latency alert fired for checkout-service",
+      "source": "alertmanager",
+      "provenance": "trusted"
+    },
+    {
+      "timestamp": "2026-08-22T14:06:00Z",
+      "description": "HTTP 5xx error rate alert fired for checkout-service",
+      "source": "alertmanager",
+      "provenance": "trusted"
+    },
+    {
+      "timestamp": "2026-08-22T14:07:40Z",
+      "description": "HTTP 5xx error rate alert fired for order-service",
+      "source": "alertmanager",
+      "provenance": "trusted"
+    }
+  ],
+  "service_topology": [
+    {
+      "from_service": "order-service",
+      "to_service": "checkout-service",
+      "relationship": "calls",
+      "provenance": "trusted"
+    },
+    {
+      "from_service": "checkout-service",
+      "to_service": "redis",
+      "relationship": "calls",
+      "provenance": "trusted"
+    },
+    {
+      "from_service": "checkout-service",
+      "to_service": "payment-service",
+      "relationship": "calls",
+      "provenance": "trusted"
+    }
+  ],
+  "metrics_summary": [
+    {
+      "service": "checkout-service",
+      "metric_name": "cpu_usage_seconds",
+      "unit": "cores",
+      "baseline": 0.42,
+      "current": 3.1,
+      "trend": "rising",
+      "window_start": "2026-08-22T14:00:00Z",
+      "window_end": "2026-08-22T14:10:00Z",
+      "provenance": "trusted"
+    },
+    {
+      "service": "checkout-service",
+      "metric_name": "latency_ms",
+      "unit": "ms",
+      "baseline": 118.0,
+      "current": 2200.0,
+      "trend": "rising",
+      "window_start": "2026-08-22T14:00:00Z",
+      "window_end": "2026-08-22T14:10:00Z",
+      "provenance": "trusted"
+    },
+    {
+      "service": "checkout-service",
+      "metric_name": "http_error_rate",
+      "unit": "ratio",
+      "baseline": 0.001,
+      "current": 0.35,
+      "trend": "rising",
+      "window_start": "2026-08-22T14:00:00Z",
+      "window_end": "2026-08-22T14:10:00Z",
+      "provenance": "trusted"
+    },
+    {
+      "service": "checkout-service",
+      "metric_name": "memory_working_set_bytes",
+      "unit": "bytes",
+      "baseline": 512000000.0,
+      "current": 516000000.0,
+      "trend": "stable",
+      "window_start": "2026-08-22T14:00:00Z",
+      "window_end": "2026-08-22T14:10:00Z",
+      "provenance": "trusted"
+    }
+  ],
+  "log_excerpts": [
+    {
+      "timestamp": "2026-08-22T14:06:20Z",
+      "service": "checkout-service",
+      "pod": "checkout-service-7d9f-abc12",
+      "level": "error",
+      "message": "500 Internal Server Error handling POST /checkout",
+      "labels": {
+        "namespace": "cloudmart-prod"
+      },
+      "provenance": "untrusted"
+    },
+    {
+      "timestamp": "2026-08-22T14:07:00Z",
+      "service": "checkout-service",
+      "pod": "checkout-service-7d9f-abc12",
+      "level": "error",
+      "message": "Exception: upstream timeout while processing order total",
+      "labels": {
+        "namespace": "cloudmart-prod"
+      },
+      "provenance": "untrusted"
+    },
+    {
+      "timestamp": "2026-08-22T14:07:50Z",
+      "service": "order-service",
+      "pod": "order-service-55c1-xy901",
+      "level": "error",
+      "message": "500 Internal Server Error calling checkout-service /reserve",
+      "labels": {
+        "namespace": "cloudmart-prod"
+      },
+      "provenance": "untrusted"
+    }
+  ],
+  "trace_excerpts": [
+    {
+      "trace_id": "ec8c1176ba2e45d78ab3e63ad31bba37",
+      "span_id": "ae308e13b25b4728",
+      "service": "checkout-service",
+      "operation": "POST /checkout",
+      "duration_ms": 2450.0,
+      "status": "error",
+      "start_time": "2026-08-22T14:06:40Z",
+      "tags": {
+        "http.status_code": 500
+      },
+      "provenance": "untrusted"
+    }
+  ],
+  "k8s_events": [
+    {
+      "timestamp": "2026-08-22T14:05:30Z",
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "object_ref": "checkout-service-7d9f-abc12",
+      "message": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+      "provenance": "trusted"
+    }
+  ],
+  "recent_deployments": [
+    {
+      "service": "checkout-service",
+      "deployed_at": "2026-08-22T14:02:00Z",
+      "commit_sha": "a1b2c3d",
+      "branch": "main",
+      "change_summary": "redis connection pool size reduced from 50 to 5 in checkout-service config",
+      "provenance": "trusted"
+    }
+  ]
+}

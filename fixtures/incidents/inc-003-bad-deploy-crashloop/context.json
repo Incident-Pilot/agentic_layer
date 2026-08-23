@@ -1,0 +1,80 @@
+{
+  "incident_id": "inc-003-bad-deploy-crashloop",
+  "title": "notifications-worker in CrashLoopBackOff",
+  "description": "notifications-worker pods are repeatedly restarting since the latest deployment.",
+  "detected_at": "2026-08-18T03:05:00Z",
+  "severity": "critical",
+  "affected_services": [
+    "notifications-worker"
+  ],
+  "affected_namespace": "cloudmart-prod",
+  "timeline": [
+    {
+      "timestamp": "2026-08-18T03:02:00Z",
+      "description": "notifications-worker deployment rolled out",
+      "source": "deployment",
+      "provenance": "trusted"
+    },
+    {
+      "timestamp": "2026-08-18T03:02:45Z",
+      "description": "BackOff event on notifications-worker",
+      "source": "kubernetes",
+      "provenance": "trusted"
+    }
+  ],
+  "service_topology": [
+    {
+      "from_service": "notifications-worker",
+      "to_service": "notifications-queue",
+      "relationship": "calls",
+      "provenance": "trusted"
+    }
+  ],
+  "metrics_summary": [
+    {
+      "service": "notifications-worker",
+      "metric_name": "pod_restarts",
+      "unit": "count",
+      "baseline": 0.0,
+      "current": 12.0,
+      "trend": "rising",
+      "window_start": "2026-08-18T02:55:00Z",
+      "window_end": "2026-08-18T03:05:00Z",
+      "provenance": "trusted"
+    }
+  ],
+  "log_excerpts": [
+    {
+      "timestamp": "2026-08-18T03:02:20Z",
+      "service": "notifications-worker",
+      "pod": "notifications-worker-9a2c-001",
+      "level": "error",
+      "message": "panic: required environment variable REQUIRED_QUEUE_URL is not set",
+      "labels": {
+        "namespace": "cloudmart-prod"
+      },
+      "provenance": "untrusted"
+    }
+  ],
+  "trace_excerpts": [],
+  "k8s_events": [
+    {
+      "timestamp": "2026-08-18T03:02:45Z",
+      "type": "Warning",
+      "reason": "BackOff",
+      "object_ref": "notifications-worker",
+      "message": "Back-off restarting failed container",
+      "provenance": "trusted"
+    }
+  ],
+  "recent_deployments": [
+    {
+      "service": "notifications-worker",
+      "deployed_at": "2026-08-18T03:02:00Z",
+      "commit_sha": "9f8e7d6",
+      "branch": "main",
+      "change_summary": "missing REQUIRED_QUEUE_URL environment variable in new config map causes startup panic",
+      "provenance": "trusted"
+    }
+  ]
+}

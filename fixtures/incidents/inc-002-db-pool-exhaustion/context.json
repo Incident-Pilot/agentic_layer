@@ -1,0 +1,78 @@
+{
+  "incident_id": "inc-002-db-pool-exhaustion",
+  "title": "Database connection pool exhausted on orders-api",
+  "description": "orders-api database connection pool utilization hit 100%, causing request queuing.",
+  "detected_at": "2026-08-15T09:40:00Z",
+  "severity": "warning",
+  "affected_services": [
+    "orders-api"
+  ],
+  "affected_namespace": "cloudmart-prod",
+  "timeline": [
+    {
+      "timestamp": "2026-08-15T09:34:00Z",
+      "description": "db_pool_active_connections alert fired for orders-api",
+      "source": "alertmanager",
+      "provenance": "trusted"
+    }
+  ],
+  "service_topology": [
+    {
+      "from_service": "orders-api",
+      "to_service": "orders-db",
+      "relationship": "calls",
+      "provenance": "trusted"
+    }
+  ],
+  "metrics_summary": [
+    {
+      "service": "orders-api",
+      "metric_name": "db_pool_active_connections",
+      "unit": "connections",
+      "baseline": 8.0,
+      "current": 100.0,
+      "trend": "rising",
+      "window_start": "2026-08-15T09:30:00Z",
+      "window_end": "2026-08-15T09:40:00Z",
+      "provenance": "trusted"
+    },
+    {
+      "service": "orders-api",
+      "metric_name": "memory_working_set_bytes",
+      "unit": "bytes",
+      "baseline": 300000000.0,
+      "current": 305000000.0,
+      "trend": "stable",
+      "window_start": "2026-08-15T09:30:00Z",
+      "window_end": "2026-08-15T09:40:00Z",
+      "provenance": "trusted"
+    }
+  ],
+  "log_excerpts": [
+    {
+      "timestamp": "2026-08-15T09:35:00Z",
+      "service": "orders-api",
+      "pod": "orders-api-33ab-11ff",
+      "level": "error",
+      "message": "FATAL: remaining connection slots are reserved for non-replication superuser connections",
+      "labels": {
+        "namespace": "cloudmart-prod"
+      },
+      "provenance": "untrusted"
+    },
+    {
+      "timestamp": "2026-08-15T09:35:50Z",
+      "service": "orders-api",
+      "pod": "orders-api-33ab-11ff",
+      "level": "error",
+      "message": "connection pool exhausted, request queued for 4200ms",
+      "labels": {
+        "namespace": "cloudmart-prod"
+      },
+      "provenance": "untrusted"
+    }
+  ],
+  "trace_excerpts": [],
+  "k8s_events": [],
+  "recent_deployments": []
+}

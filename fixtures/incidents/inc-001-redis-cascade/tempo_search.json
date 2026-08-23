@@ -1,0 +1,21 @@
+{
+  "buckets": {
+    "checkout-service": {
+      "traces": [
+        {
+          "traceID": "c30e9bf41d154c228e1e9ce92205956b",
+          "rootServiceName": "checkout-service",
+          "rootTraceName": "POST /checkout",
+          "startTimeUnixNano": "1787407600000000000",
+          "durationMs": 2450
+        }
+      ]
+    },
+    "order-service": {
+      "traces": []
+    },
+    "default": {
+      "traces": []
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "buckets": {
+    "default": {
+      "resultType": "streams",
+      "result": [
+        {
+          "stream": {
+            "namespace": "cloudmart-prod",
+            "service": "checkout-service",
+            "pod": "checkout-service-7d9f-abc12",
+            "level": "error"
+          },
+          "values": [
+            [
+              "1787407560000000000",
+              "500 Internal Server Error handling POST /checkout"
+            ],
+            [
+              "1787407605000000000",
+              "Exception: upstream timeout while processing order total"
+            ],
+            [
+              "1787407650000000000",
+              "500 Internal Server Error handling POST /checkout/pay"
+            ]
+          ]
+        },
+        {
+          "stream": {
+            "namespace": "cloudmart-prod",
+            "service": "order-service",
+            "pod": "order-service-7d9f-abc12",
+            "level": "error"
+          },
+          "values": [
+            [
+              "1787407670000000000",
+              "500 Internal Server Error calling checkout-service /reserve"
+            ]
+          ]
+        }
+      ]
+    },
+    "redis": {
+      "resultType": "streams",
+      "result": [
+        {
+          "stream": {
+            "namespace": "cloudmart-prod",
+            "service": "checkout-service",
+            "pod": "checkout-service-7d9f-abc12",
+            "level": "error"
+          },
+          "values": [
+            [
+              "1787407410000000000",
+              "redis.exceptions.ConnectionError: Error 111 connecting to redis-master:6379. Connection pool exhausted (max 5 connections)."
+            ],
+            [
+              "1787407455000000000",
+              "WARN retrying redis GET session:8f21ac after ConnectionError, attempt 3/5"
+            ],
+            [
+              "1787407500000000000",
+              "redis.exceptions.ConnectionError: Error 111 connecting to redis-master:6379. Connection pool exhausted (max 5 connections)."
+            ]
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "buckets": {
+    "default": {
+      "traces": []
+    },
+    "orders-api": {
+      "traces": []
+    }
+  }
+}

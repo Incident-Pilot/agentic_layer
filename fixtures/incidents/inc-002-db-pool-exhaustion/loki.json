@@ -1,0 +1,31 @@
+{
+  "buckets": {
+    "default": {
+      "resultType": "streams",
+      "result": [
+        {
+          "stream": {
+            "namespace": "cloudmart-prod",
+            "service": "orders-api",
+            "pod": "orders-api-33ab-11ff",
+            "level": "error"
+          },
+          "values": [
+            [
+              "1786786500000000000",
+              "FATAL: remaining connection slots are reserved for non-replication superuser connections"
+            ],
+            [
+              "1786786530000000000",
+              "connection pool exhausted, request queued for 4200ms"
+            ],
+            [
+              "1786786560000000000",
+              "connection pool exhausted, request queued for 5100ms"
+            ]
+          ]
+        }
+      ]
+    }
+  }
+}
