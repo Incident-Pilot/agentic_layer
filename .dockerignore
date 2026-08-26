@@ -1,0 +1,17 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.DS_Store
+
+.env
+.env.docker
+
+# Local dev artifacts -- not baked into the image, produced at runtime
+# instead (see Dockerfile's chown of /app).
+trajectories/*.json
+state/*.json
+
+tests/
