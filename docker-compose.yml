@@ -1,0 +1,29 @@
+# Convenience wrapper around `docker run` for local testing -- a single
+# service, this repo doesn't use Postgres/Redis (yet). Not meant for
+# multi-service orchestration or any deployment target.
+#
+# Usage:
+#   cp .env.docker.example .env.docker   # fill in real values
+#   docker compose --env-file .env.docker up --build
+#
+# Networking to the Gateway (ClusterIP-only, reached today via
+# `kubectl port-forward svc/observation-gateway 8000:8000` on the host):
+#
+#   - Linux: uncomment `network_mode: host` below and set
+#     INCIDENT_GATEWAY_URL=http://localhost:8000 in .env.docker. Host
+#     networking makes the `ports:` mapping below a no-op, since the
+#     container already shares the host's network namespace.
+#   - macOS/Windows (Docker Desktop): leave `network_mode: host` commented
+#     out (it isn't supported the same way there) and set
+#     INCIDENT_GATEWAY_URL=http://host.docker.internal:8000 in .env.docker
+#     instead. `ports:` below is what publishes the API in this mode.
+
+services:
+  incident-pilot-agent:
+    build: .
+    env_file:
+      - .env.docker
+    ports:
+      - "${AGENT_API_PORT:-8100}:${AGENT_API_PORT:-8100}"
+    # network_mode: host   # Linux only -- see comment above
+    restart: unless-stopped
