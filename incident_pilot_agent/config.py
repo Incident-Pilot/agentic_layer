@@ -42,4 +42,27 @@ PROMETHEUS_BASE_URL = os.environ.get("PROMETHEUS_BASE_URL")
 LOKI_BASE_URL = os.environ.get("LOKI_BASE_URL")
 TEMPO_BASE_URL = os.environ.get("TEMPO_BASE_URL")
 
+# incident-pilot-ecommerce's observation-gateway -- unset by default, same
+# "optional, real backend" pattern as PROMETHEUS_BASE_URL/etc. above.
+# GatewayContextProvider (context_provider/gateway_provider.py) is only
+# used when both are set; FixtureContextProvider remains the default.
+INCIDENT_GATEWAY_URL = os.environ.get("INCIDENT_GATEWAY_URL")
+INCIDENT_GATEWAY_API_KEY = os.environ.get("INCIDENT_GATEWAY_API_KEY")
+
 DEFAULT_MAX_ITERATIONS = int(os.environ.get("INCIDENT_PILOT_MAX_ITERATIONS", "4"))
+
+# Read-only investigation API (incident_pilot_agent/api/) -- serves the
+# incident-pilot-dashboard repo. Runs in the same process as `watch`. Port
+# defaults to 8100, distinct from the Gateway's 8000. AGENT_API_KEY is a
+# locally-generated bearer token (e.g. `openssl rand -hex 32`), not a
+# Kubernetes Secret -- this service isn't deployed to the cluster.
+AGENT_API_HOST = os.environ.get("AGENT_API_HOST", "0.0.0.0")
+AGENT_API_PORT = int(os.environ.get("AGENT_API_PORT", "8100"))
+AGENT_API_KEY = os.environ.get("AGENT_API_KEY")
+
+# `watch` subcommand (cli.py): polls GET {INCIDENT_GATEWAY_URL}/incidents on
+# this cadence -- 30s matches Alertmanager's group_interval used elsewhere
+# in this project.
+DEFAULT_WATCH_POLL_INTERVAL_SECONDS = float(os.environ.get("INCIDENT_PILOT_WATCH_POLL_INTERVAL_SECONDS", "30"))
+DEFAULT_STATE_DIR = REPO_ROOT / "state"
+DEFAULT_PROCESSED_INCIDENTS_FILE = DEFAULT_STATE_DIR / "processed_incidents.json"

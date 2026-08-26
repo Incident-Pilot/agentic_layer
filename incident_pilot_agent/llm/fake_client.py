@@ -21,7 +21,9 @@ non-fixture-specific heuristics per task:
   first-pass investigator might make. On a replanning round it instead
   builds a hypothesis around the evidence a rejection surfaced.
 - verify-decide: REJECTED if independently-gathered evidence corroborates
-  an uncited deployment; CONFIRMED otherwise.
+  an uncited deployment; REJECTED also if there is neither resolved
+  supporting_evidence nor any newly-gathered evidence to confirm against
+  (silence is not grounds for confirmation); CONFIRMED otherwise.
 
 A real LLMClient (AnthropicLLMClient) makes all of these judgment calls
 via genuine reasoning instead.
@@ -63,16 +65,41 @@ def _last_user_text(messages: List[LLMMessage]) -> str:
 
 
 class FakeLLMClient(LLMClient):
+    def __init__(self, refuse_tool_calls_once: bool = False, refuse_all_tool_calls: bool = False):
+        """Both params exist only to test run_tool_loop's
+        require_at_least_one_call retry path (see agents/tool_loop.py) --
+        a real LLMClient just decides this on its own.
+
+        refuse_tool_calls_once: the very first investigate-tools/
+        verify-tools response comes back with no tool calls (simulating a
+        model that stops immediately), then behaves normally (real tool
+        calls, per the deterministic plan) on every call after that --
+        i.e. it complies once nudged by the retry.
+
+        refuse_all_tool_calls: every investigate-tools/verify-tools
+        response comes back with no tool calls, including after a retry
+        nudge -- simulates a model that never complies, so the retry is
+        exhausted and the loop must give up cleanly.
+        """
+        self._refuse_tool_calls_once = refuse_tool_calls_once
+        self._refuse_all_tool_calls = refuse_all_tool_calls
+        self._has_refused = False
+
     async def complete(
         self, *, system: str, messages: List[LLMMessage], tools=None, max_tokens: int = 1024
     ) -> LLMResponse:
         task = _extract_task(system)
 
-        if task == "investigate-tools":
-            plan = self._plan_investigate(_extract_json(system))
-            return self._next_tool_call(messages, plan)
-        if task == "verify-tools":
-            plan = self._plan_verify(_extract_json(system))
+        if task in ("investigate-tools", "verify-tools"):
+            should_refuse = self._refuse_all_tool_calls or (
+                self._refuse_tool_calls_once and not self._has_refused and len(messages) == 1
+            )
+            if should_refuse:
+                self._has_refused = True
+                return LLMResponse(content="Nothing further needed.", tool_calls=[], stop_reason="end_turn")
+            plan = self._plan_investigate(_extract_json(system)) if task == "investigate-tools" else self._plan_verify(
+                _extract_json(system)
+            )
             return self._next_tool_call(messages, plan)
         if task == "synthesize-hypothesis":
             return self._synthesize_hypothesis(_extract_json(_last_user_text(messages)))
@@ -252,6 +279,7 @@ class FakeLLMClient(LLMClient):
     def _verify_decide(payload: Dict[str, Any]) -> LLMResponse:
         uncited = payload.get("uncited_deployment")
         new_evidence = payload.get("newly_gathered_evidence", [])
+        supporting_evidence = payload.get("supporting_evidence", [])
 
         if uncited and new_evidence:
             reasoning = (
@@ -269,8 +297,16 @@ class FakeLLMClient(LLMClient):
                 )
             )
 
+        if not supporting_evidence and not new_evidence:
+            reasoning = (
+                "No original supporting evidence resolved for this hypothesis and the independent "
+                "targeted query found nothing new -- there is nothing to confirm against."
+            )
+            return LLMResponse(content=json.dumps({"verdict": "REJECTED", "reasoning_summary": reasoning, "counter_evidence_ids": []}))
+
         reasoning = (
-            "Independent check found no evidence contradicting the hypothesis."
+            "Original supporting evidence substantiates the hypothesis and the independent check found no "
+            "contradicting evidence."
             if not uncited
             else "An earlier deployment exists but the targeted query found no corroborating evidence; hypothesis stands."
         )

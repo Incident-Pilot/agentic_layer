@@ -49,6 +49,19 @@ class TrajectoryEntry(BaseModel):
     verification_verdict: Optional[str] = None
     round: int = 1
 
+    # Additive snapshot of the hypothesis named by hypothesis_id above, as
+    # of this entry -- root_cause/confidence/supporting evidence live only
+    # on the in-memory Hypothesis during a graph run and were otherwise
+    # unrecoverable from the trajectory file alone (only hypothesis_id was
+    # logged). Populated by synthesizer.py (description/confidence/
+    # supporting) and verifier.py (contradicting, from counter_evidence_ids)
+    # so a trajectory file is sufficient, on its own, to answer "what is the
+    # current hypothesis" -- see incident_pilot_agent/api/.
+    hypothesis_description: Optional[str] = None
+    hypothesis_confidence: Optional[float] = None
+    hypothesis_supporting_evidence_ids: List[str] = Field(default_factory=list)
+    hypothesis_contradicting_evidence_ids: List[str] = Field(default_factory=list)
+
 
 class TrajectoryLogger:
     def __init__(self, incident_id: str, output_dir: Path):
@@ -78,6 +91,10 @@ class TrajectoryLogger:
         hypothesis_id: Optional[str] = None,
         verification_verdict: Optional[str] = None,
         round: int = 1,
+        hypothesis_description: Optional[str] = None,
+        hypothesis_confidence: Optional[float] = None,
+        hypothesis_supporting_evidence_ids: Optional[List[str]] = None,
+        hypothesis_contradicting_evidence_ids: Optional[List[str]] = None,
     ) -> TrajectoryEntry:
         self._sequence += 1
         entry = TrajectoryEntry(
@@ -101,6 +118,10 @@ class TrajectoryLogger:
             hypothesis_id=hypothesis_id,
             verification_verdict=verification_verdict,
             round=round,
+            hypothesis_description=hypothesis_description,
+            hypothesis_confidence=hypothesis_confidence,
+            hypothesis_supporting_evidence_ids=hypothesis_supporting_evidence_ids or [],
+            hypothesis_contradicting_evidence_ids=hypothesis_contradicting_evidence_ids or [],
         )
         self._entries.append(entry)
         self._flush()
