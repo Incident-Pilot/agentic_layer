@@ -1,0 +1,10 @@
+{
+    "namespace": "cloudmart-prod",
+    "topology": {
+        "frontend": ["product-service", "order-service", "user-service"],
+        "order-service": ["product-service", "notification-service"],
+        "product-service": [],
+        "user-service": [],
+        "notification-service": ["order-service"]
+    }
+}

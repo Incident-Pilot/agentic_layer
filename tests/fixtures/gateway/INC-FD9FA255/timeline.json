@@ -1,0 +1,19 @@
+{
+    "incident_id": "INC-FD9FA255",
+    "timeline": [
+        {"timestamp": "2026-08-06T19:57:34+00:00", "kind": "observation", "id": "obs-git-8ec43f00b49d", "source": "git", "signal": "deployment", "description": "deployment on order-service"},
+        {"timestamp": "2026-08-06T19:57:34+00:00", "kind": "evidence", "id": "ev-fd66d65e8b3f", "type": "deployment", "source": "git", "summary": "order-service deployed 27293 minutes before this incident (commit 137548f)", "description": "order-service deployed 27293 minutes before this incident (commit 137548f)"},
+        {"timestamp": "2026-08-24T07:38:43+00:00", "kind": "observation", "id": "obs-kubernetes-7d73c865dd01", "source": "kubernetes", "signal": "pod_status", "description": "pod_status on unknown service"},
+        {"timestamp": "2026-08-24T07:38:43+00:00", "kind": "evidence", "id": "ev-7765d61d7827", "type": "kubernetes_event", "source": "kubernetes", "summary": "Pod order-service-5cc5c4d4d6-4xwsh status: phase=Running, ready=True", "description": "Pod order-service-5cc5c4d4d6-4xwsh status: phase=Running, ready=True"},
+        {"timestamp": "2026-08-24T07:38:55+00:00", "kind": "observation", "id": "obs-kubernetes-8a777528f4d1", "source": "kubernetes", "signal": "pod_status", "description": "pod_status on unknown service"},
+        {"timestamp": "2026-08-24T07:38:55+00:00", "kind": "evidence", "id": "ev-06321f023df0", "type": "kubernetes_event", "source": "kubernetes", "summary": "Pod order-service-5cc5c4d4d6-6ktzl status: phase=Running, ready=True", "description": "Pod order-service-5cc5c4d4d6-6ktzl status: phase=Running, ready=True"},
+        {"timestamp": "2026-08-25T18:51:20+00:00", "kind": "observation", "id": "obs-alertmanager-f36348ef95d8", "source": "alertmanager", "signal": "HighHTTPErrorRate", "description": "HighHTTPErrorRate on order-service"},
+        {"timestamp": "2026-08-25T18:51:20+00:00", "kind": "evidence", "id": "ev-f68a88b38c0b", "type": "alert", "source": "alertmanager", "summary": "Alert 'HighHTTPErrorRate' fired on order-service", "description": "Alert 'HighHTTPErrorRate' fired on order-service"},
+        {"timestamp": "2026-08-25T18:51:20.888000+00:00", "kind": "observation", "id": "obs-prometheus-afcf2012bd1e", "source": "prometheus", "signal": "memory_working_set_bytes", "description": "memory_working_set_bytes on order-service"},
+        {"timestamp": "2026-08-25T18:51:20.888000+00:00", "kind": "observation", "id": "obs-prometheus-4578e64b2bb7", "source": "prometheus", "signal": "pod_restarts", "description": "pod_restarts on order-service"},
+        {"timestamp": "2026-08-25T18:51:20.888000+00:00", "kind": "observation", "id": "obs-prometheus-ea24079bc956", "source": "prometheus", "signal": "cpu_usage_seconds", "description": "cpu_usage_seconds on order-service"},
+        {"timestamp": "2026-08-25T18:51:20.888000+00:00", "kind": "evidence", "id": "ev-be49e108bca5", "type": "metric", "source": "prometheus", "summary": "memory_working_set_bytes for order-service: 1.859e+08 bytes -> 1.79e+08 bytes (stable)", "description": "memory_working_set_bytes for order-service: 1.859e+08 bytes -> 1.79e+08 bytes (stable)"},
+        {"timestamp": "2026-08-25T18:51:20.888000+00:00", "kind": "evidence", "id": "ev-498f5aaaf0c5", "type": "metric", "source": "prometheus", "summary": "pod_restarts for order-service: 0 count -> 0 count (stable)", "description": "pod_restarts for order-service: 0 count -> 0 count (stable)"},
+        {"timestamp": "2026-08-25T18:51:20.888000+00:00", "kind": "evidence", "id": "ev-93e9c484991e", "type": "metric", "source": "prometheus", "summary": "cpu_usage_seconds for order-service: 0.02304 cores -> 0.02212 cores (stable)", "description": "cpu_usage_seconds for order-service: 0.02304 cores -> 0.02212 cores (stable)"}
+    ]
+}

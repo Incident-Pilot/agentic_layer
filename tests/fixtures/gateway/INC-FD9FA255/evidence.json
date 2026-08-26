@@ -1,0 +1,86 @@
+[
+    {
+        "evidence_id": "ev-fd66d65e8b3f",
+        "incident_id": "INC-FD9FA255",
+        "type": "deployment",
+        "source": "git",
+        "timestamp": "2026-08-06T19:57:34Z",
+        "service": "order-service",
+        "resource": null,
+        "summary": "order-service deployed 27293 minutes before this incident (commit 137548f)",
+        "observation_id": "obs-git-8ec43f00b49d",
+        "raw_reference": {"query": "get_deployment(namespace=cloudmart-prod, name=order-service)", "trace_id": null, "log_query": null, "extra": {}}
+    },
+    {
+        "evidence_id": "ev-7765d61d7827",
+        "incident_id": "INC-FD9FA255",
+        "type": "kubernetes_event",
+        "source": "kubernetes",
+        "timestamp": "2026-08-24T07:38:43Z",
+        "service": null,
+        "resource": "order-service-5cc5c4d4d6-4xwsh",
+        "summary": "Pod order-service-5cc5c4d4d6-4xwsh status: phase=Running, ready=True",
+        "observation_id": "obs-kubernetes-7d73c865dd01",
+        "raw_reference": {"query": "list_namespaced_pod(namespace=cloudmart-prod)", "trace_id": null, "log_query": null, "extra": {}}
+    },
+    {
+        "evidence_id": "ev-06321f023df0",
+        "incident_id": "INC-FD9FA255",
+        "type": "kubernetes_event",
+        "source": "kubernetes",
+        "timestamp": "2026-08-24T07:38:55Z",
+        "service": null,
+        "resource": "order-service-5cc5c4d4d6-6ktzl",
+        "summary": "Pod order-service-5cc5c4d4d6-6ktzl status: phase=Running, ready=True",
+        "observation_id": "obs-kubernetes-8a777528f4d1",
+        "raw_reference": {"query": "list_namespaced_pod(namespace=cloudmart-prod)", "trace_id": null, "log_query": null, "extra": {}}
+    },
+    {
+        "evidence_id": "ev-f68a88b38c0b",
+        "incident_id": "INC-FD9FA255",
+        "type": "alert",
+        "source": "alertmanager",
+        "timestamp": "2026-08-25T18:51:20Z",
+        "service": "order-service",
+        "resource": null,
+        "summary": "Alert 'HighHTTPErrorRate' fired on order-service",
+        "observation_id": "obs-alertmanager-f36348ef95d8",
+        "raw_reference": {"query": null, "trace_id": null, "log_query": null, "extra": {}}
+    },
+    {
+        "evidence_id": "ev-be49e108bca5",
+        "incident_id": "INC-FD9FA255",
+        "type": "metric",
+        "source": "prometheus",
+        "timestamp": "2026-08-25T18:51:20.888000Z",
+        "service": "order-service",
+        "resource": null,
+        "summary": "memory_working_set_bytes for order-service: 1.859e+08 bytes -> 1.79e+08 bytes (stable)",
+        "observation_id": "obs-prometheus-afcf2012bd1e",
+        "raw_reference": {"query": "container_memory_working_set_bytes{namespace=\"cloudmart-prod\",pod=~\"order-service.*\"}", "trace_id": null, "log_query": null, "extra": {}}
+    },
+    {
+        "evidence_id": "ev-498f5aaaf0c5",
+        "incident_id": "INC-FD9FA255",
+        "type": "metric",
+        "source": "prometheus",
+        "timestamp": "2026-08-25T18:51:20.888000Z",
+        "service": "order-service",
+        "resource": null,
+        "summary": "pod_restarts for order-service: 0 count -> 0 count (stable)",
+        "observation_id": "obs-prometheus-4578e64b2bb7",
+        "raw_reference": {"query": "kube_pod_container_status_restarts_total{namespace=\"cloudmart-prod\",pod=~\"order-service.*\"}", "trace_id": null, "log_query": null, "extra": {}}
+    },
+    {
+        "evidence_id": "ev-93e9c484991e",
+        "incident_id": "INC-FD9FA255",
+        "type": "metric",
+        "source": "prometheus",
+        "timestamp": "2026-08-25T18:51:20.888000Z",
+        "service": "order-service",
+        "resource": null,
+        "summary": "cpu_usage_seconds for order-service: 0.02304 cores -> 0.02212 cores (stable)",
+        "observation_id": "obs-prometheus-ea24079bc956",
+        "raw_reference": {"query": "rate(container_cpu_usage_seconds_total{namespace=\"cloudmart-prod\",pod=~\"order-service.*\"}[5m])", "trace_id": null, "log_query": null, "extra": {}}
+    }
+]

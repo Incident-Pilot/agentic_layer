@@ -1,0 +1,36 @@
+{
+    "incident_id": "INC-FD9FA255",
+    "title": "HighHTTPErrorRate",
+    "severity": "critical",
+    "status": "open",
+    "current_phase": "ready_for_investigation",
+    "created_at": "2026-08-25T18:51:20.870314Z",
+    "updated_at": "2026-08-25T18:51:22.535244Z",
+    "source": "alertmanager",
+    "affected_services": ["order-service"],
+    "affected_namespace": "cloudmart-prod",
+    "initial_alerts": ["HighHTTPErrorRate"],
+    "root_cause": null,
+    "root_cause_confidence": null,
+    "observations": [
+        "obs-git-8ec43f00b49d",
+        "obs-kubernetes-7d73c865dd01",
+        "obs-kubernetes-8a777528f4d1",
+        "obs-alertmanager-f36348ef95d8",
+        "obs-prometheus-afcf2012bd1e",
+        "obs-prometheus-4578e64b2bb7",
+        "obs-prometheus-ea24079bc956"
+    ],
+    "evidence": [
+        {"id": "ev-fd66d65e8b3f", "type": "deployment", "summary": "order-service deployed 27293 minutes before this incident (commit 137548f)"},
+        {"id": "ev-7765d61d7827", "type": "kubernetes_event", "summary": "Pod order-service-5cc5c4d4d6-4xwsh status: phase=Running, ready=True"},
+        {"id": "ev-06321f023df0", "type": "kubernetes_event", "summary": "Pod order-service-5cc5c4d4d6-6ktzl status: phase=Running, ready=True"},
+        {"id": "ev-f68a88b38c0b", "type": "alert", "summary": "Alert 'HighHTTPErrorRate' fired on order-service"},
+        {"id": "ev-be49e108bca5", "type": "metric", "summary": "memory_working_set_bytes for order-service: 1.859e+08 bytes -> 1.79e+08 bytes (stable)"},
+        {"id": "ev-498f5aaaf0c5", "type": "metric", "summary": "pod_restarts for order-service: 0 count -> 0 count (stable)"},
+        {"id": "ev-93e9c484991e", "type": "metric", "summary": "cpu_usage_seconds for order-service: 0.02304 cores -> 0.02212 cores (stable)"}
+    ],
+    "topology": {
+        "order-service": ["product-service", "notification-service"]
+    }
+}

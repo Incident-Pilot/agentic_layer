@@ -1,0 +1,11 @@
+{
+    "incident_id": "INC-FD9FA255",
+    "source_status": [
+        {"source": "alertmanager", "status": "available", "error": null, "observation_count": 1},
+        {"source": "deployment", "status": "available", "error": null, "observation_count": 1},
+        {"source": "kubernetes", "status": "available", "error": null, "observation_count": 2},
+        {"source": "loki", "status": "available", "error": null, "observation_count": 0},
+        {"source": "prometheus", "status": "available", "error": null, "observation_count": 3},
+        {"source": "tempo", "status": "available", "error": null, "observation_count": 0}
+    ]
+}
