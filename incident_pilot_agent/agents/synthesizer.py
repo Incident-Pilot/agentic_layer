@@ -91,6 +91,9 @@ class HypothesisSynthesizer:
             reasoning_summary=f"Round {round_num}: proposed hypothesis '{hypothesis.root_cause}' (confidence={hypothesis.confidence:.2f}).",
             hypothesis_id=hypothesis.hypothesis_id,
             round=round_num,
+            hypothesis_description=hypothesis.root_cause,
+            hypothesis_confidence=hypothesis.confidence,
+            hypothesis_supporting_evidence_ids=hypothesis.supporting_evidence_ids,
         )
 
         return {
