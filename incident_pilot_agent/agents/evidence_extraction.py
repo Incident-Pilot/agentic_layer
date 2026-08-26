@@ -33,7 +33,15 @@ def _match_service(object_ref: str, known_services: List[str]) -> str:
 def evidence_from_context(context: IncidentContext) -> List[Evidence]:
     """Baseline evidence taken directly from the pre-aggregated
     IncidentContext the (future) Context Builder already assembled --
-    no tool call needed to know these facts."""
+    no tool call needed to know these facts.
+
+    Walks only the five typed IncidentContext fields below, so this will
+    seed fewer items than the Gateway's raw /evidence count whenever that
+    list also contains "alert" (or "security") evidence -- IncidentContext
+    has no field for those by design (see gateway_provider._bucket_evidence):
+    the triggering alert is already captured at the incident level via
+    initial_alerts, so re-seeding it here as investigator evidence would be
+    redundant."""
     evidence: List[Evidence] = []
 
     for m in context.metrics_summary:
