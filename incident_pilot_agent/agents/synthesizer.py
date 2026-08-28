@@ -102,6 +102,9 @@ class HypothesisSynthesizer:
             hypothesis_description=hypothesis.root_cause,
             hypothesis_confidence=hypothesis.confidence,
             hypothesis_supporting_evidence_ids=hypothesis.supporting_evidence_ids,
+            hypothesis_causal_chain=hypothesis.causal_chain,
+            hypothesis_affected_services=hypothesis.affected_services,
+            hypothesis_actionable=hypothesis.actionable,
         )
 
         return {

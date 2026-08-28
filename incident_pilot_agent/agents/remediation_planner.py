@@ -86,6 +86,9 @@ class RemediationPlanner:
             hypothesis_confidence=hypothesis.confidence,
             hypothesis_supporting_evidence_ids=hypothesis.supporting_evidence_ids,
             hypothesis_contradicting_evidence_ids=hypothesis.contradicting_evidence_ids,
+            hypothesis_causal_chain=hypothesis.causal_chain,
+            hypothesis_affected_services=hypothesis.affected_services,
+            hypothesis_actionable=hypothesis.actionable,
             remediation_actions=[a.model_dump() for a in actions],
         )
 

@@ -17,6 +17,9 @@ class HypothesisSummary(BaseModel):
     confidence: float
     supporting_evidence: List[str]
     contradicting_evidence: List[str]
+    causal_chain: List[str]
+    affected_services: List[str]
+    actionable: bool
 
 
 class RemediationActionSummary(BaseModel):

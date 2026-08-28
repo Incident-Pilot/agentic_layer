@@ -49,6 +49,9 @@ def _current_hypothesis(entries: List[TrajectoryEntry], hypothesis_id: str) -> O
                 confidence=entry.hypothesis_confidence or 0.0,
                 supporting_evidence=entry.hypothesis_supporting_evidence_ids,
                 contradicting_evidence=entry.hypothesis_contradicting_evidence_ids,
+                causal_chain=entry.hypothesis_causal_chain,
+                affected_services=entry.hypothesis_affected_services,
+                actionable=entry.hypothesis_actionable if entry.hypothesis_actionable is not None else True,
             )
     return None
 

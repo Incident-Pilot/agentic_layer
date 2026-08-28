@@ -1,0 +1,622 @@
+{
+  "incident_id": "inc-001-redis-cascade",
+  "entries": [
+    {
+      "sequence": 1,
+      "timestamp": "2026-08-26T18:55:58.864548Z",
+      "incident_id": "inc-001-redis-cascade",
+      "agent": "orchestrator",
+      "phase": "INVESTIGATING",
+      "reasoning_summary": "Round 1: dispatching to ['application'] for initial investigation.",
+      "tool_calls": [],
+      "evidence_ids": [],
+      "hypothesis_id": null,
+      "verification_verdict": null,
+      "round": 1,
+      "hypothesis_description": null,
+      "hypothesis_confidence": null,
+      "hypothesis_supporting_evidence_ids": [],
+      "hypothesis_contradicting_evidence_ids": [],
+      "remediation_actions": [],
+      "remediation_status": null,
+      "remediation_disclaimer": null,
+      "remediation_generated_at": null
+    },
+    {
+      "sequence": 2,
+      "timestamp": "2026-08-26T18:55:58.867133Z",
+      "incident_id": "inc-001-redis-cascade",
+      "agent": "investigator",
+      "phase": "INVESTIGATING",
+      "reasoning_summary": "Round 1: ran 7 tool call(s) across metrics/logs/traces for ['checkout-service', 'order-service'], producing 9 new evidence item(s) (plus 10 seeded from incident context).",
+      "tool_calls": [
+        {
+          "tool_name": "query_prometheus",
+          "query_summary": "PromQL `cpu_usage_seconds{namespace=\"cloudmart-prod\"}` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "series": [
+              {
+                "labels": {
+                  "__name__": "cpu_usage_seconds",
+                  "service": "checkout-service",
+                  "namespace": "cloudmart-prod",
+                  "pod": "checkout-service-7d9f-abc12"
+                },
+                "first_value": 0.42,
+                "last_value": 3.1,
+                "min_value": 0.42,
+                "max_value": 3.1,
+                "trend": "rising",
+                "sample_count": 6
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_prometheus",
+          "query_summary": "PromQL `latency_ms{namespace=\"cloudmart-prod\"}` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "series": [
+              {
+                "labels": {
+                  "__name__": "latency_ms",
+                  "service": "checkout-service",
+                  "namespace": "cloudmart-prod",
+                  "pod": "checkout-service-7d9f-abc12"
+                },
+                "first_value": 118.0,
+                "last_value": 2200.0,
+                "min_value": 118.0,
+                "max_value": 2200.0,
+                "trend": "rising",
+                "sample_count": 6
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_prometheus",
+          "query_summary": "PromQL `http_error_rate{namespace=\"cloudmart-prod\"}` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "series": [
+              {
+                "labels": {
+                  "__name__": "http_error_rate",
+                  "service": "checkout-service",
+                  "namespace": "cloudmart-prod",
+                  "pod": "checkout-service-7d9f-abc12"
+                },
+                "first_value": 0.001,
+                "last_value": 0.35,
+                "min_value": 0.001,
+                "max_value": 0.35,
+                "trend": "rising",
+                "sample_count": 6
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_prometheus",
+          "query_summary": "PromQL `memory_working_set_bytes{namespace=\"cloudmart-prod\"}` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "series": [
+              {
+                "labels": {
+                  "__name__": "memory_working_set_bytes",
+                  "service": "checkout-service",
+                  "namespace": "cloudmart-prod",
+                  "pod": "checkout-service-7d9f-abc12"
+                },
+                "first_value": 512000000.0,
+                "last_value": 516000000.0,
+                "min_value": 510000000.0,
+                "max_value": 518000000.0,
+                "trend": "stable",
+                "sample_count": 6
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_loki",
+          "query_summary": "LogQL `{namespace=\"cloudmart-prod\"} |~ \"(?i)error|exception|timeout|fail\"` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": "{\"entries\": [{\"timestamp\": \"2026-08-22T14:06:00Z\", \"namespace\": \"cloudmart-prod\", \"pod\": \"checkout-service-7d9f-abc12\", \"container\": null, \"service\": \"checkout-service\", \"labels\": {\"namespace\": \"cloudmart-prod\", \"service\": \"checkout-service\", \"pod\": \"checkout-service-7d9f-abc12\", \"level\": \"error\"}, \"message\": \"500 Internal Server Error handling POST /checkout\"}, {\"timestamp\": \"2026-08-22T14:06:45Z\", \"namespace\": \"cloudmart-prod\", \"pod\": \"checkout-service-7d9f-abc12\", \"container\": null, \"service\"... [truncated, 1430 chars total]",
+          "error": null
+        },
+        {
+          "tool_name": "query_tempo",
+          "query_summary": "Tempo search service.name=checkout-service over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "traces": [
+              {
+                "trace_id": "c30e9bf41d154c228e1e9ce92205956b",
+                "root_service": "checkout-service",
+                "root_operation": "POST /checkout",
+                "start_time": "2026-08-22T14:06:40Z",
+                "duration_ms": 2450.0
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_tempo",
+          "query_summary": "Tempo search service.name=order-service over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "traces": []
+          },
+          "error": null
+        }
+      ],
+      "evidence_ids": [
+        "ev-metric-9b9624138d",
+        "ev-metric-ce9c4af031",
+        "ev-metric-493dc753f4",
+        "ev-metric-a6f5f3c6ae",
+        "ev-log-729cd41646",
+        "ev-log-ce05cf41c8",
+        "ev-log-f4cb7e3314",
+        "ev-trace-49dac60643",
+        "ev-k8s-bb6e7f6ef8",
+        "ev-deploy-3d3bc0c65b",
+        "ev-metric-0de458d827",
+        "ev-metric-1296d5cb2f",
+        "ev-metric-075dc1fae4",
+        "ev-metric-fe03d79b3f",
+        "ev-log-f0d311140d",
+        "ev-log-c31d56a590",
+        "ev-log-c561a00969",
+        "ev-log-eaafa74775",
+        "ev-trace-7ff5798729"
+      ],
+      "hypothesis_id": null,
+      "verification_verdict": null,
+      "round": 1,
+      "hypothesis_description": null,
+      "hypothesis_confidence": null,
+      "hypothesis_supporting_evidence_ids": [],
+      "hypothesis_contradicting_evidence_ids": [],
+      "remediation_actions": [],
+      "remediation_status": null,
+      "remediation_disclaimer": null,
+      "remediation_generated_at": null
+    },
+    {
+      "sequence": 3,
+      "timestamp": "2026-08-26T18:55:58.868270Z",
+      "incident_id": "inc-001-redis-cascade",
+      "agent": "synthesizer",
+      "phase": "HYPOTHESIS_GENERATED",
+      "reasoning_summary": "Round 1: proposed hypothesis 'checkout-service resource exhaustion (cpu_usage_seconds for checkout-service: rising (0.42 -> 3.1 cores)) is the root cause' (confidence=0.55).",
+      "tool_calls": [],
+      "evidence_ids": [],
+      "hypothesis_id": "hyp-27b9c03719",
+      "verification_verdict": null,
+      "round": 1,
+      "hypothesis_description": "checkout-service resource exhaustion (cpu_usage_seconds for checkout-service: rising (0.42 -> 3.1 cores)) is the root cause",
+      "hypothesis_confidence": 0.55,
+      "hypothesis_supporting_evidence_ids": [
+        "ev-metric-9b9624138d"
+      ],
+      "hypothesis_contradicting_evidence_ids": [],
+      "remediation_actions": [],
+      "remediation_status": null,
+      "remediation_disclaimer": null,
+      "remediation_generated_at": null
+    },
+    {
+      "sequence": 4,
+      "timestamp": "2026-08-26T18:55:58.870386Z",
+      "incident_id": "inc-001-redis-cascade",
+      "agent": "verifier",
+      "phase": "VERIFICATION_FAILED",
+      "reasoning_summary": "Round 1: REJECTED -- Independent targeted query surfaced 3 new evidence item(s) tied to an uncited deployment on checkout-service (redis connection pool size reduced from 50 to 5 in checkout-service config) deployed at 2026-08-22T14:02:00+00:00, which better explains the incident than the current hypothesis.",
+      "tool_calls": [
+        {
+          "tool_name": "query_loki",
+          "query_summary": "LogQL `{namespace=\"cloudmart-prod\"} |~ \"(?i)redis\"` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": "{\"entries\": [{\"timestamp\": \"2026-08-22T14:03:30Z\", \"namespace\": \"cloudmart-prod\", \"pod\": \"checkout-service-7d9f-abc12\", \"container\": null, \"service\": \"checkout-service\", \"labels\": {\"namespace\": \"cloudmart-prod\", \"service\": \"checkout-service\", \"pod\": \"checkout-service-7d9f-abc12\", \"level\": \"error\"}, \"message\": \"redis.exceptions.ConnectionError: Error 111 connecting to redis-master:6379. Connection pool exhausted (max 5 connections).\"}, {\"timestamp\": \"2026-08-22T14:04:15Z\", \"namespace\": \"cloudmart... [truncated, 1241 chars total]",
+          "error": null
+        }
+      ],
+      "evidence_ids": [
+        "ev-log-b26f09adb1",
+        "ev-log-e88b65ac7a",
+        "ev-log-6bee6ccfe1"
+      ],
+      "hypothesis_id": "hyp-27b9c03719",
+      "verification_verdict": "REJECTED",
+      "round": 1,
+      "hypothesis_description": "checkout-service resource exhaustion (cpu_usage_seconds for checkout-service: rising (0.42 -> 3.1 cores)) is the root cause",
+      "hypothesis_confidence": 0.55,
+      "hypothesis_supporting_evidence_ids": [
+        "ev-metric-9b9624138d"
+      ],
+      "hypothesis_contradicting_evidence_ids": [
+        "ev-log-b26f09adb1",
+        "ev-log-e88b65ac7a",
+        "ev-log-6bee6ccfe1"
+      ],
+      "remediation_actions": [],
+      "remediation_status": null,
+      "remediation_disclaimer": null,
+      "remediation_generated_at": null
+    },
+    {
+      "sequence": 5,
+      "timestamp": "2026-08-26T18:55:58.871876Z",
+      "incident_id": "inc-001-redis-cascade",
+      "agent": "orchestrator",
+      "phase": "INVESTIGATING",
+      "reasoning_summary": "Round 2: previous hypothesis rejected ('checkout-service resource exhaustion (cpu_usage_seconds for checkout-service: rising (0.42 -> 3.1 cores)) is the root cause'). Redispatching to ['application'] with instruction to explore a different angle.",
+      "tool_calls": [],
+      "evidence_ids": [],
+      "hypothesis_id": null,
+      "verification_verdict": null,
+      "round": 2,
+      "hypothesis_description": null,
+      "hypothesis_confidence": null,
+      "hypothesis_supporting_evidence_ids": [],
+      "hypothesis_contradicting_evidence_ids": [],
+      "remediation_actions": [],
+      "remediation_status": null,
+      "remediation_disclaimer": null,
+      "remediation_generated_at": null
+    },
+    {
+      "sequence": 6,
+      "timestamp": "2026-08-26T18:55:58.873749Z",
+      "incident_id": "inc-001-redis-cascade",
+      "agent": "investigator",
+      "phase": "INVESTIGATING",
+      "reasoning_summary": "Round 2: ran 7 tool call(s) across metrics/logs/traces for ['checkout-service', 'order-service'], producing 9 new evidence item(s) (plus 0 seeded from incident context). Addressing previous rejection reason: 'Independent targeted query surfaced 3 new evidence item(s) tied to an uncited deployment on checkout-service (redis connection pool size reduced from 50 to 5 in checkout-service config) deployed at 2026-08-22T14:02:00+00:00, which better explains the incident than the current hypothesis.'.",
+      "tool_calls": [
+        {
+          "tool_name": "query_prometheus",
+          "query_summary": "PromQL `cpu_usage_seconds{namespace=\"cloudmart-prod\"}` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "series": [
+              {
+                "labels": {
+                  "__name__": "cpu_usage_seconds",
+                  "service": "checkout-service",
+                  "namespace": "cloudmart-prod",
+                  "pod": "checkout-service-7d9f-abc12"
+                },
+                "first_value": 0.42,
+                "last_value": 3.1,
+                "min_value": 0.42,
+                "max_value": 3.1,
+                "trend": "rising",
+                "sample_count": 6
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_prometheus",
+          "query_summary": "PromQL `latency_ms{namespace=\"cloudmart-prod\"}` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "series": [
+              {
+                "labels": {
+                  "__name__": "latency_ms",
+                  "service": "checkout-service",
+                  "namespace": "cloudmart-prod",
+                  "pod": "checkout-service-7d9f-abc12"
+                },
+                "first_value": 118.0,
+                "last_value": 2200.0,
+                "min_value": 118.0,
+                "max_value": 2200.0,
+                "trend": "rising",
+                "sample_count": 6
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_prometheus",
+          "query_summary": "PromQL `http_error_rate{namespace=\"cloudmart-prod\"}` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "series": [
+              {
+                "labels": {
+                  "__name__": "http_error_rate",
+                  "service": "checkout-service",
+                  "namespace": "cloudmart-prod",
+                  "pod": "checkout-service-7d9f-abc12"
+                },
+                "first_value": 0.001,
+                "last_value": 0.35,
+                "min_value": 0.001,
+                "max_value": 0.35,
+                "trend": "rising",
+                "sample_count": 6
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_prometheus",
+          "query_summary": "PromQL `memory_working_set_bytes{namespace=\"cloudmart-prod\"}` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "series": [
+              {
+                "labels": {
+                  "__name__": "memory_working_set_bytes",
+                  "service": "checkout-service",
+                  "namespace": "cloudmart-prod",
+                  "pod": "checkout-service-7d9f-abc12"
+                },
+                "first_value": 512000000.0,
+                "last_value": 516000000.0,
+                "min_value": 510000000.0,
+                "max_value": 518000000.0,
+                "trend": "stable",
+                "sample_count": 6
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_loki",
+          "query_summary": "LogQL `{namespace=\"cloudmart-prod\"} |~ \"(?i)error|exception|timeout|fail\"` over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": "{\"entries\": [{\"timestamp\": \"2026-08-22T14:06:00Z\", \"namespace\": \"cloudmart-prod\", \"pod\": \"checkout-service-7d9f-abc12\", \"container\": null, \"service\": \"checkout-service\", \"labels\": {\"namespace\": \"cloudmart-prod\", \"service\": \"checkout-service\", \"pod\": \"checkout-service-7d9f-abc12\", \"level\": \"error\"}, \"message\": \"500 Internal Server Error handling POST /checkout\"}, {\"timestamp\": \"2026-08-22T14:06:45Z\", \"namespace\": \"cloudmart-prod\", \"pod\": \"checkout-service-7d9f-abc12\", \"container\": null, \"service\"... [truncated, 1430 chars total]",
+          "error": null
+        },
+        {
+          "tool_name": "query_tempo",
+          "query_summary": "Tempo search service.name=checkout-service over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "traces": [
+              {
+                "trace_id": "c30e9bf41d154c228e1e9ce92205956b",
+                "root_service": "checkout-service",
+                "root_operation": "POST /checkout",
+                "start_time": "2026-08-22T14:06:40Z",
+                "duration_ms": 2450.0
+              }
+            ]
+          },
+          "error": null
+        },
+        {
+          "tool_name": "query_tempo",
+          "query_summary": "Tempo search service.name=order-service over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "traces": []
+          },
+          "error": null
+        }
+      ],
+      "evidence_ids": [
+        "ev-metric-d3dc082b31",
+        "ev-metric-5d49ead55b",
+        "ev-metric-c824e89aa3",
+        "ev-metric-ffd511e432",
+        "ev-log-e11709bcfc",
+        "ev-log-07b48a99ed",
+        "ev-log-9526f9b2bb",
+        "ev-log-ca040c20ee",
+        "ev-trace-348173481e"
+      ],
+      "hypothesis_id": null,
+      "verification_verdict": null,
+      "round": 2,
+      "hypothesis_description": null,
+      "hypothesis_confidence": null,
+      "hypothesis_supporting_evidence_ids": [],
+      "hypothesis_contradicting_evidence_ids": [],
+      "remediation_actions": [],
+      "remediation_status": null,
+      "remediation_disclaimer": null,
+      "remediation_generated_at": null
+    },
+    {
+      "sequence": 7,
+      "timestamp": "2026-08-26T18:55:58.875175Z",
+      "incident_id": "inc-001-redis-cascade",
+      "agent": "synthesizer",
+      "phase": "HYPOTHESIS_GENERATED",
+      "reasoning_summary": "Round 2: proposed hypothesis 'checkout-service root cause: redis connection pool size reduced from 50 to 5 in checkout-service config triggered cascading failures across checkout-service, order-service' (confidence=0.88).",
+      "tool_calls": [],
+      "evidence_ids": [],
+      "hypothesis_id": "hyp-a2a509d857",
+      "verification_verdict": null,
+      "round": 2,
+      "hypothesis_description": "checkout-service root cause: redis connection pool size reduced from 50 to 5 in checkout-service config triggered cascading failures across checkout-service, order-service",
+      "hypothesis_confidence": 0.88,
+      "hypothesis_supporting_evidence_ids": [
+        "ev-metric-9b9624138d",
+        "ev-metric-ce9c4af031",
+        "ev-metric-493dc753f4",
+        "ev-metric-a6f5f3c6ae",
+        "ev-log-729cd41646",
+        "ev-log-ce05cf41c8",
+        "ev-trace-49dac60643",
+        "ev-k8s-bb6e7f6ef8",
+        "ev-deploy-3d3bc0c65b",
+        "ev-metric-0de458d827",
+        "ev-metric-1296d5cb2f",
+        "ev-metric-075dc1fae4",
+        "ev-metric-fe03d79b3f",
+        "ev-log-f0d311140d",
+        "ev-log-c31d56a590",
+        "ev-log-c561a00969",
+        "ev-trace-7ff5798729",
+        "ev-log-b26f09adb1",
+        "ev-log-e88b65ac7a",
+        "ev-log-6bee6ccfe1",
+        "ev-metric-d3dc082b31",
+        "ev-metric-5d49ead55b",
+        "ev-metric-c824e89aa3",
+        "ev-metric-ffd511e432",
+        "ev-log-e11709bcfc",
+        "ev-log-07b48a99ed",
+        "ev-log-9526f9b2bb",
+        "ev-trace-348173481e",
+        "ev-log-f4cb7e3314"
+      ],
+      "hypothesis_contradicting_evidence_ids": [],
+      "remediation_actions": [],
+      "remediation_status": null,
+      "remediation_disclaimer": null,
+      "remediation_generated_at": null
+    },
+    {
+      "sequence": 8,
+      "timestamp": "2026-08-26T18:55:58.877155Z",
+      "incident_id": "inc-001-redis-cascade",
+      "agent": "verifier",
+      "phase": "ROOT_CAUSE_CONFIRMED",
+      "reasoning_summary": "Round 2: CONFIRMED -- Original supporting evidence substantiates the hypothesis and the independent check found no contradicting evidence.",
+      "tool_calls": [
+        {
+          "tool_name": "query_tempo",
+          "query_summary": "Tempo search service.name=checkout-service over 2026-08-22T13:50:00+00:00..2026-08-22T14:15:00+00:00",
+          "ok": true,
+          "result_preview": {
+            "traces": [
+              {
+                "trace_id": "c30e9bf41d154c228e1e9ce92205956b",
+                "root_service": "checkout-service",
+                "root_operation": "POST /checkout",
+                "start_time": "2026-08-22T14:06:40Z",
+                "duration_ms": 2450.0
+              }
+            ]
+          },
+          "error": null
+        }
+      ],
+      "evidence_ids": [
+        "ev-trace-4b8f03ace2"
+      ],
+      "hypothesis_id": "hyp-a2a509d857",
+      "verification_verdict": "CONFIRMED",
+      "round": 2,
+      "hypothesis_description": "checkout-service root cause: redis connection pool size reduced from 50 to 5 in checkout-service config triggered cascading failures across checkout-service, order-service",
+      "hypothesis_confidence": 0.88,
+      "hypothesis_supporting_evidence_ids": [
+        "ev-metric-9b9624138d",
+        "ev-metric-ce9c4af031",
+        "ev-metric-493dc753f4",
+        "ev-metric-a6f5f3c6ae",
+        "ev-log-729cd41646",
+        "ev-log-ce05cf41c8",
+        "ev-trace-49dac60643",
+        "ev-k8s-bb6e7f6ef8",
+        "ev-deploy-3d3bc0c65b",
+        "ev-metric-0de458d827",
+        "ev-metric-1296d5cb2f",
+        "ev-metric-075dc1fae4",
+        "ev-metric-fe03d79b3f",
+        "ev-log-f0d311140d",
+        "ev-log-c31d56a590",
+        "ev-log-c561a00969",
+        "ev-trace-7ff5798729",
+        "ev-log-b26f09adb1",
+        "ev-log-e88b65ac7a",
+        "ev-log-6bee6ccfe1",
+        "ev-metric-d3dc082b31",
+        "ev-metric-5d49ead55b",
+        "ev-metric-c824e89aa3",
+        "ev-metric-ffd511e432",
+        "ev-log-e11709bcfc",
+        "ev-log-07b48a99ed",
+        "ev-log-9526f9b2bb",
+        "ev-trace-348173481e",
+        "ev-log-f4cb7e3314"
+      ],
+      "hypothesis_contradicting_evidence_ids": [],
+      "remediation_actions": [],
+      "remediation_status": null,
+      "remediation_disclaimer": null,
+      "remediation_generated_at": null
+    },
+    {
+      "sequence": 9,
+      "timestamp": "2026-08-26T18:55:58.878599Z",
+      "incident_id": "inc-001-redis-cascade",
+      "agent": "remediation_planner",
+      "phase": "REMEDIATION_PROPOSED",
+      "reasoning_summary": "Proposed 1 remediation action(s) for confirmed hypothesis 'checkout-service root cause: redis connection pool size reduced from 50 to 5 in checkout-service config triggered cascading failures across checkout-service, order-service'.",
+      "tool_calls": [],
+      "evidence_ids": [],
+      "hypothesis_id": "hyp-a2a509d857",
+      "verification_verdict": "CONFIRMED",
+      "round": 2,
+      "hypothesis_description": "checkout-service root cause: redis connection pool size reduced from 50 to 5 in checkout-service config triggered cascading failures across checkout-service, order-service",
+      "hypothesis_confidence": 0.88,
+      "hypothesis_supporting_evidence_ids": [
+        "ev-metric-9b9624138d",
+        "ev-metric-ce9c4af031",
+        "ev-metric-493dc753f4",
+        "ev-metric-a6f5f3c6ae",
+        "ev-log-729cd41646",
+        "ev-log-ce05cf41c8",
+        "ev-trace-49dac60643",
+        "ev-k8s-bb6e7f6ef8",
+        "ev-deploy-3d3bc0c65b",
+        "ev-metric-0de458d827",
+        "ev-metric-1296d5cb2f",
+        "ev-metric-075dc1fae4",
+        "ev-metric-fe03d79b3f",
+        "ev-log-f0d311140d",
+        "ev-log-c31d56a590",
+        "ev-log-c561a00969",
+        "ev-trace-7ff5798729",
+        "ev-log-b26f09adb1",
+        "ev-log-e88b65ac7a",
+        "ev-log-6bee6ccfe1",
+        "ev-metric-d3dc082b31",
+        "ev-metric-5d49ead55b",
+        "ev-metric-c824e89aa3",
+        "ev-metric-ffd511e432",
+        "ev-log-e11709bcfc",
+        "ev-log-07b48a99ed",
+        "ev-log-9526f9b2bb",
+        "ev-trace-348173481e",
+        "ev-log-f4cb7e3314"
+      ],
+      "hypothesis_contradicting_evidence_ids": [],
+      "remediation_actions": [
+        {
+          "description": "Roll back the recent deployment to checkout-service",
+          "target": "checkout-service",
+          "action_type": "rollback_deployment",
+          "risk_level": "medium",
+          "rationale": "Addresses confirmed root cause: checkout-service root cause: redis connection pool size reduced from 50 to 5 in checkout-service config triggered cascading failures across checkout-service, order-service"
+        }
+      ],
+      "remediation_status": "proposed",
+      "remediation_disclaimer": "This is a proposed plan only. No action has been taken. Execution requires explicit human approval, which is not yet built.",
+      "remediation_generated_at": "2026-08-26T18:55:58.878590Z"
+    }
+  ]
+}
