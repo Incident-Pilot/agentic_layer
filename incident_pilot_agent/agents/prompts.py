@@ -42,7 +42,13 @@ def system_header(task: str, role_description: str) -> str:
 
 def parse_json_response(content: str) -> Dict[str, Any]:
     """Defensively parse a model's final-answer text as JSON, tolerating a
-    ```json ... ``` fence even though prompts ask for raw JSON only."""
+    ```json ... ``` fence even though prompts ask for raw JSON only. Also
+    tolerates trailing prose after the object (observed from Kimi K2.5 via
+    Bedrock, which appends a short justification after the JSON despite the
+    "ONLY a JSON object" instruction -- arguably licensed by _NO_COT_RULE's
+    own "plus at most a few sentences of concise justification" clause --
+    by parsing just the first complete JSON value and discarding the rest,
+    same as an ordinary ```json fence is discarded."""
     if content is None:
         raise ValueError("empty LLM response, expected JSON content")
     text = content.strip()
@@ -50,4 +56,5 @@ def parse_json_response(content: str) -> Dict[str, Any]:
         text = text.strip("`")
         if text.lower().startswith("json"):
             text = text[4:]
-    return json.loads(text.strip())
+    obj, _ = json.JSONDecoder().raw_decode(text.strip())
+    return obj
