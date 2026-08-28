@@ -51,6 +51,7 @@ shared/models/{incident,evidence,enums}.py, not guessed:
                                    below.
 """
 
+import asyncio
 import logging
 import re
 from datetime import datetime, timedelta
@@ -66,6 +67,8 @@ from ..models.context import (
     MetricSummary,
     Provenance,
     ServiceTopologyEdge,
+    SourceAvailability,
+    SourceStatusEntry,
     TimelineEvent,
     TraceExcerpt,
 )
@@ -108,6 +111,26 @@ _COMMIT_RE = re.compile(r"\(commit ([0-9a-fA-F]{4,40})\)")
 
 _UNTRUSTED_EVIDENCE_TYPES = {"log", "trace"}
 
+# The laptop -> EC2 SSH tunnel + kubectl port-forward bridge this provider
+# talks through occasionally stalls/drops mid-request (never the same
+# endpoint twice in a row, and the Gateway itself responds in well under
+# 100ms once reached) -- retried the same way ecommerce-cloudmart's
+# deploy.sh kubectl_retry() retries flaky kubectl calls: a few attempts with
+# short backoff, connection-level failures only. A real HTTP error response
+# (401/404/500/...) is never retried here -- see _get_json.
+_MAX_GET_ATTEMPTS = 3
+_RETRYABLE_EXCEPTIONS = (httpx.ReadTimeout, httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError)
+
+# /topology measured at 2.4s on a direct, un-tunneled call to the Gateway
+# (zero network overhead) -- almost certainly recomputing the service graph
+# fresh on every request, uncached, Gateway-side. Every other endpoint here
+# responds in well under 100ms, so this one alone gets a longer per-attempt
+# timeout rather than raising the default for every call. The real fix
+# (caching this response Gateway-side) belongs in incident-pilot-ecommerce,
+# not here -- this is the client-side mitigation that helps regardless of
+# whether/when that ships.
+_TOPOLOGY_TIMEOUT_SECONDS = 30.0
+
 
 def _parse_ts(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -139,7 +162,19 @@ class GatewayContextProvider(ContextProvider):
             evidence = await self._get_json(client, f"/incidents/{incident_id}/evidence")
             source_status = await self._get_json(client, f"/incidents/{incident_id}/source-status")
             timeline_payload = await self._get_json(client, f"/incidents/{incident_id}/timeline")
-            topology_payload = await self._get_json(client, "/topology")
+            # /topology is supplementary context, not core evidence -- and
+            # the one endpoint here slow enough that a genuinely dead tunnel
+            # can still exhaust every retry even with the longer timeout
+            # above. Degrade to an empty topology rather than failing the
+            # whole investigation before it starts, the same way an
+            # unavailable source in /source-status degrades gracefully
+            # instead of crashing.
+            try:
+                topology_payload = await self._get_json(client, "/topology", timeout_seconds=_TOPOLOGY_TIMEOUT_SECONDS)
+                service_topology = _build_topology(topology_payload)
+            except _RETRYABLE_EXCEPTIONS as exc:
+                logger.warning("topology fetch failed after retries, continuing without it: %r", exc)
+                service_topology = []
         finally:
             if owns_client:
                 await client.aclose()
@@ -156,19 +191,44 @@ class GatewayContextProvider(ContextProvider):
             affected_services=incident.get("affected_services") or [],
             affected_namespace=incident.get("affected_namespace"),
             timeline=_build_timeline(timeline_payload, evidence),
-            service_topology=_build_topology(topology_payload),
+            service_topology=service_topology,
             metrics_summary=metrics_summary,
             log_excerpts=log_excerpts,
             trace_excerpts=trace_excerpts,
             k8s_events=k8s_events,
             recent_deployments=recent_deployments,
+            source_status=_map_source_status(source_status),
         )
 
-    async def _get_json(self, client: httpx.AsyncClient, path: str) -> Any:
+    async def _get_json(self, client: httpx.AsyncClient, path: str, timeout_seconds: Optional[float] = None) -> Any:
         url = f"{self._base_url}{path}"
-        response = await client.get(url, headers={"Authorization": f"Bearer {self._api_key}"})
-        response.raise_for_status()
-        return response.json()
+        request_kwargs: Dict[str, Any] = {"headers": {"Authorization": f"Bearer {self._api_key}"}}
+        if timeout_seconds is not None:
+            request_kwargs["timeout"] = timeout_seconds
+        for attempt in range(1, _MAX_GET_ATTEMPTS + 1):
+            try:
+                response = await client.get(url, **request_kwargs)
+                response.raise_for_status()
+                return response.json()
+            except _RETRYABLE_EXCEPTIONS as exc:
+                if attempt >= _MAX_GET_ATTEMPTS:
+                    logger.warning(
+                        "gateway request failed after %d attempts, giving up: %s %s (%s)",
+                        _MAX_GET_ATTEMPTS,
+                        path,
+                        exc.__class__.__name__,
+                        exc,
+                    )
+                    raise
+                logger.warning(
+                    "gateway request failed (attempt %d/%d), retrying: %s %s (%s)",
+                    attempt,
+                    _MAX_GET_ATTEMPTS,
+                    path,
+                    exc.__class__.__name__,
+                    exc,
+                )
+                await asyncio.sleep(attempt)  # 1s, then 2s
 
 
 def _log_source_status(incident_id: str, payload: Dict[str, Any]) -> None:
@@ -183,6 +243,25 @@ def _log_source_status(incident_id: str, payload: Dict[str, Any]) -> None:
             entry.get("observation_count"),
             entry.get("error"),
         )
+
+
+def _map_source_status(payload: Dict[str, Any]) -> List[SourceStatusEntry]:
+    """Attaches the already-fetched /source-status response onto
+    IncidentContext (previously only logged -- see _log_source_status)
+    so agents/investigator.py can decide which tools are worth offering
+    this round rather than re-discovering a known-unavailable source via
+    a wasted tool call."""
+    entries = []
+    for entry in payload.get("source_status") or []:
+        entries.append(
+            SourceStatusEntry(
+                source=entry["source"],
+                status=SourceAvailability(entry["status"]),
+                error=entry.get("error"),
+                observation_count=entry.get("observation_count") or 0,
+            )
+        )
+    return entries
 
 
 def _build_topology(payload: Dict[str, Any]) -> List[ServiceTopologyEdge]:
