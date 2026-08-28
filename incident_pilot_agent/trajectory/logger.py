@@ -36,6 +36,14 @@ class ToolCallLogEntry(BaseModel):
     error: Optional[str] = None
 
 
+class RemediationActionLogEntry(BaseModel):
+    description: str
+    target: str
+    action_type: str
+    risk_level: str
+    rationale: str
+
+
 class TrajectoryEntry(BaseModel):
     sequence: int
     timestamp: datetime
@@ -61,6 +69,12 @@ class TrajectoryEntry(BaseModel):
     hypothesis_confidence: Optional[float] = None
     hypothesis_supporting_evidence_ids: List[str] = Field(default_factory=list)
     hypothesis_contradicting_evidence_ids: List[str] = Field(default_factory=list)
+
+    # Additive, same pattern as the hypothesis snapshot fields above: set
+    # only by agents/remediation_planner.py's own entry, so a trajectory
+    # file is sufficient on its own to answer "what remediation plan was
+    # proposed" -- see incident_pilot_agent/api/.
+    remediation_actions: List[RemediationActionLogEntry] = Field(default_factory=list)
 
 
 class TrajectoryLogger:
@@ -95,6 +109,7 @@ class TrajectoryLogger:
         hypothesis_confidence: Optional[float] = None,
         hypothesis_supporting_evidence_ids: Optional[List[str]] = None,
         hypothesis_contradicting_evidence_ids: Optional[List[str]] = None,
+        remediation_actions: Optional[List[Dict[str, Any]]] = None,
     ) -> TrajectoryEntry:
         self._sequence += 1
         entry = TrajectoryEntry(
@@ -122,6 +137,7 @@ class TrajectoryLogger:
             hypothesis_confidence=hypothesis_confidence,
             hypothesis_supporting_evidence_ids=hypothesis_supporting_evidence_ids or [],
             hypothesis_contradicting_evidence_ids=hypothesis_contradicting_evidence_ids or [],
+            remediation_actions=[RemediationActionLogEntry(**a) for a in (remediation_actions or [])],
         )
         self._entries.append(entry)
         self._flush()
