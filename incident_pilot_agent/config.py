@@ -35,6 +35,43 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
+# Per-graph-node OpenRouter model overrides -- see .env.example for the
+# reasoning behind the suggested cheap/strong split. Each falls back to the
+# single OPENROUTER_MODEL above when unset, so this is purely additive:
+# nothing changes for a deployment that never sets these. Only meaningful
+# for --llm openrouter (these are OpenRouter-namespaced model ids, e.g.
+# "openai/gpt-4o-mini"); cli.py._build_llm only applies them when the
+# openrouter provider is selected, since passing an OpenRouter-shaped id to
+# the Anthropic/OpenAI/Gemini APIs directly would just be an invalid model.
+INVESTIGATOR_MODEL = os.environ.get("INVESTIGATOR_MODEL", OPENROUTER_MODEL)
+SYNTHESIZER_MODEL = os.environ.get("SYNTHESIZER_MODEL", OPENROUTER_MODEL)
+VERIFIER_MODEL = os.environ.get("VERIFIER_MODEL", OPENROUTER_MODEL)
+# No remediation graph node exists yet (see graph/build.py) -- this is
+# reserved so the config surface is already in place when one lands.
+REMEDIATION_MODEL = os.environ.get("REMEDIATION_MODEL", OPENROUTER_MODEL)
+
+# Bedrock, reached via the Mantle gateway, speaks the same OpenAI Chat
+# Completions wire format as OpenRouter -- same OpenAILLMClient, different
+# base_url/key/model, no separate client module. Model ids are Bedrock's
+# own "provider.model" form, e.g. "moonshotai.kimi-k2.5" or
+# "anthropic.claude-sonnet-5".
+BEDROCK_API_KEY = os.environ.get("AWS_BEARER_TOKEN_BEDROCK")
+# Observed with a stray leading/trailing space when pasted from the AWS
+# console into .env -- stripped here since that silently breaks Bearer auth.
+BEDROCK_API_KEY = BEDROCK_API_KEY.strip() if BEDROCK_API_KEY else BEDROCK_API_KEY
+BEDROCK_BASE_URL = os.environ.get("BEDROCK_BASE_URL", "https://bedrock-mantle.us-east-1.api.aws/v1")
+BEDROCK_MODEL = os.environ.get("BEDROCK_MODEL", "moonshotai.kimi-k2.5")
+
+# Per-graph-node Bedrock model overrides -- same reasoning and same
+# cli.py._node_model gate as INVESTIGATOR_MODEL/etc. above, just scoped to
+# --llm bedrock instead of --llm openrouter (these are Bedrock-namespaced
+# model ids, e.g. "anthropic.claude-sonnet-5", invalid against the other
+# SDKs directly). Each falls back to the single BEDROCK_MODEL when unset.
+BEDROCK_INVESTIGATOR_MODEL = os.environ.get("BEDROCK_INVESTIGATOR_MODEL", BEDROCK_MODEL)
+BEDROCK_SYNTHESIZER_MODEL = os.environ.get("BEDROCK_SYNTHESIZER_MODEL", BEDROCK_MODEL)
+BEDROCK_VERIFIER_MODEL = os.environ.get("BEDROCK_VERIFIER_MODEL", BEDROCK_MODEL)
+BEDROCK_REMEDIATION_MODEL = os.environ.get("BEDROCK_REMEDIATION_MODEL", BEDROCK_MODEL)
+
 # Optional: point at a real read-only observability stack instead of
 # fixtures. Unset by default -- FixtureContextProvider + fixture-backed
 # tools are what this phase actually runs against.

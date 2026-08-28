@@ -17,8 +17,9 @@ class TempoQueryInput(BaseModel):
     service_name: Optional[str] = Field(None, description="Required for operation='search'")
     start: Optional[datetime] = Field(None, description="Required for operation='search'")
     end: Optional[datetime] = Field(None, description="Required for operation='search'")
-    limit: int = Field(20, description="Max traces to return for 'search'")
+    limit: int = Field(20, ge=1, le=50, description="Max traces to return for 'search'")
     trace_id: Optional[str] = Field(None, description="Required for operation='get_trace'")
+    max_spans: int = Field(30, ge=1, le=100, description="Max spans to return for 'get_trace', by duration descending")
 
     @model_validator(mode="after")
     def _check_required_fields(self) -> "TempoQueryInput":
@@ -72,9 +73,14 @@ class TempoTool(Tool):
             return ToolResult(tool_name=self.name, ok=False, error=result.error, query_summary=query_summary)
 
         spans = TempoClient.parse_spans(result.data)
+        top_spans = sorted(spans, key=lambda s: s.duration_ms, reverse=True)[: tool_input.max_spans]
         return ToolResult(
             tool_name=self.name,
             ok=True,
-            data={"spans": [s.model_dump(mode="json") for s in spans]},
+            data={
+                "spans": [s.model_dump(mode="json") for s in top_spans],
+                "total_span_count": len(spans),
+                "spans_shown": len(top_spans),
+            },
             query_summary=query_summary,
         )

@@ -25,13 +25,14 @@ def test_health_requires_no_auth():
 def test_get_investigation_against_real_trajectory_fixture():
     """inc-001-redis-cascade.trajectory.json is a real trajectory produced
     by actually running the graph (see tests/fixtures/trajectories/README.md),
-    round 1 rejected -> round 2 confirmed -- not a hand-built shape."""
+    round 1 rejected -> round 2 confirmed -> remediation proposed -- not a
+    hand-built shape."""
     response = _client().get("/investigations/inc-001-redis-cascade", headers=_auth())
     assert response.status_code == 200
 
     body = response.json()
     assert body["incident_id"] == "inc-001-redis-cascade"
-    assert body["phase"] == "ROOT_CAUSE_CONFIRMED"
+    assert body["phase"] == "REMEDIATION_PROPOSED"
     assert body["iteration"] == 2
     assert body["verification_verdict"] == "CONFIRMED"
     assert body["rejected_hypotheses_count"] == 1
@@ -42,6 +43,36 @@ def test_get_investigation_against_real_trajectory_fixture():
     assert hypothesis["confidence"] == 0.88
     assert hypothesis["supporting_evidence"]
     assert hypothesis["contradicting_evidence"] == []
+
+    plan = body["remediation_plan"]
+    assert plan["hypothesis_id"] == hypothesis["id"]
+    assert plan["actions"]
+    assert plan["actions"][0]["action_type"] == "rollback_deployment"
+    assert plan["disclaimer"]
+
+
+def test_get_investigation_includes_causal_chain_affected_services_actionable():
+    """inc-001-redis-cascade-actionable-fields.trajectory.json is a real
+    trajectory produced the same way as inc-001-redis-cascade.trajectory.json
+    (see tests/fixtures/trajectories/README.md), captured after
+    causal_chain/affected_services/actionable were wired into
+    TrajectoryEntry -- so its synthesizer/verifier entries carry real,
+    non-empty values for the three fields, not hand-built ones."""
+    response = _client().get(
+        "/investigations/inc-001-redis-cascade-actionable-fields", headers=_auth()
+    )
+    assert response.status_code == 200
+
+    hypothesis = response.json()["hypothesis"]
+    assert hypothesis["causal_chain"] == [
+        "checkout-service deployed at 2026-08-22 14:02:00+00:00: redis connection pool size reduced from 50 to 5 in checkout-service config",
+        "500 Internal Server Error handling POST /checkout",
+        "Exception: upstream timeout while processing order total",
+        "cpu_usage_seconds for checkout-service: rising (0.42 -> 3.1 cores)",
+        "cpu_usage_seconds for checkout-service: rising (0.42 -> 3.1)",
+    ]
+    assert hypothesis["affected_services"] == ["checkout-service", "order-service"]
+    assert hypothesis["actionable"] is True
 
 
 def test_get_investigation_missing_incident_returns_404():
@@ -70,7 +101,7 @@ def test_list_investigations_is_a_compact_subset_of_the_detail_shape():
 
     items = response.json()
     item = next(i for i in items if i["incident_id"] == "inc-001-redis-cascade")
-    assert item["phase"] == "ROOT_CAUSE_CONFIRMED"
+    assert item["phase"] == "REMEDIATION_PROPOSED"
     assert item["confidence"] == 0.88
     assert item["updated_at"]
 

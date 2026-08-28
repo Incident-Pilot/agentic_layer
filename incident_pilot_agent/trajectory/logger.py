@@ -36,6 +36,14 @@ class ToolCallLogEntry(BaseModel):
     error: Optional[str] = None
 
 
+class RemediationActionLogEntry(BaseModel):
+    description: str
+    target: str
+    action_type: str
+    risk_level: str
+    rationale: str
+
+
 class TrajectoryEntry(BaseModel):
     sequence: int
     timestamp: datetime
@@ -50,17 +58,28 @@ class TrajectoryEntry(BaseModel):
     round: int = 1
 
     # Additive snapshot of the hypothesis named by hypothesis_id above, as
-    # of this entry -- root_cause/confidence/supporting evidence live only
-    # on the in-memory Hypothesis during a graph run and were otherwise
-    # unrecoverable from the trajectory file alone (only hypothesis_id was
-    # logged). Populated by synthesizer.py (description/confidence/
-    # supporting) and verifier.py (contradicting, from counter_evidence_ids)
-    # so a trajectory file is sufficient, on its own, to answer "what is the
-    # current hypothesis" -- see incident_pilot_agent/api/.
+    # of this entry -- root_cause/confidence/supporting evidence/causal
+    # chain/affected services/actionable live only on the in-memory
+    # Hypothesis during a graph run and were otherwise unrecoverable from
+    # the trajectory file alone (only hypothesis_id was logged). Populated
+    # by synthesizer.py (description/confidence/supporting/causal_chain/
+    # affected_services/actionable) and verifier.py (contradicting, from
+    # counter_evidence_ids, plus the same causal_chain/affected_services/
+    # actionable) so a trajectory file is sufficient, on its own, to answer
+    # "what is the current hypothesis" -- see incident_pilot_agent/api/.
     hypothesis_description: Optional[str] = None
     hypothesis_confidence: Optional[float] = None
     hypothesis_supporting_evidence_ids: List[str] = Field(default_factory=list)
     hypothesis_contradicting_evidence_ids: List[str] = Field(default_factory=list)
+    hypothesis_causal_chain: List[str] = Field(default_factory=list)
+    hypothesis_affected_services: List[str] = Field(default_factory=list)
+    hypothesis_actionable: Optional[bool] = None
+
+    # Additive, same pattern as the hypothesis snapshot fields above: set
+    # only by agents/remediation_planner.py's own entry, so a trajectory
+    # file is sufficient on its own to answer "what remediation plan was
+    # proposed" -- see incident_pilot_agent/api/.
+    remediation_actions: List[RemediationActionLogEntry] = Field(default_factory=list)
 
 
 class TrajectoryLogger:
@@ -95,6 +114,10 @@ class TrajectoryLogger:
         hypothesis_confidence: Optional[float] = None,
         hypothesis_supporting_evidence_ids: Optional[List[str]] = None,
         hypothesis_contradicting_evidence_ids: Optional[List[str]] = None,
+        hypothesis_causal_chain: Optional[List[str]] = None,
+        hypothesis_affected_services: Optional[List[str]] = None,
+        hypothesis_actionable: Optional[bool] = None,
+        remediation_actions: Optional[List[Dict[str, Any]]] = None,
     ) -> TrajectoryEntry:
         self._sequence += 1
         entry = TrajectoryEntry(
@@ -122,6 +145,10 @@ class TrajectoryLogger:
             hypothesis_confidence=hypothesis_confidence,
             hypothesis_supporting_evidence_ids=hypothesis_supporting_evidence_ids or [],
             hypothesis_contradicting_evidence_ids=hypothesis_contradicting_evidence_ids or [],
+            hypothesis_causal_chain=hypothesis_causal_chain or [],
+            hypothesis_affected_services=hypothesis_affected_services or [],
+            hypothesis_actionable=hypothesis_actionable,
+            remediation_actions=[RemediationActionLogEntry(**a) for a in (remediation_actions or [])],
         )
         self._entries.append(entry)
         self._flush()

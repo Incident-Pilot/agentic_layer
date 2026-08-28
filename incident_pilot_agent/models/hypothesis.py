@@ -34,4 +34,15 @@ class Hypothesis(BaseModel):
     status: HypothesisStatus = HypothesisStatus.PROPOSED
     rejection_reason: Optional[str] = None
 
+    # Structured judgment, set explicitly by the Synthesizer alongside
+    # root_cause/confidence/etc: True if this represents a real problem to
+    # remediate, False for a genuine "no anomaly / insufficient evidence"
+    # finding (e.g. confidence 0.1, root_cause "Insufficient evidence -- no
+    # incident detected"). Gates graph/build.py's routing to the
+    # remediation planner node -- never inferred later by scanning
+    # root_cause text, since that's fragile against wording changes.
+    # Defaults True so hand-built Hypothesis fixtures predating this field
+    # are unaffected; the real synthesizer path always sets it explicitly.
+    actionable: bool = True
+
     round: int = 1

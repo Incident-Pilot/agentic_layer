@@ -10,12 +10,13 @@ try. These tests exercise the deterministic one-shot retry added to
 close that gap, independent of any specific agent.
 """
 
-from typing import ClassVar, Type
+from typing import ClassVar, List, Optional, Type
 
 from pydantic import BaseModel
 
 from incident_pilot_agent.agents.prompts import json_block, system_header
 from incident_pilot_agent.agents.tool_loop import run_tool_loop
+from incident_pilot_agent.llm.base import LLMClient, LLMMessage, LLMResponse, ToolCallRequest
 from incident_pilot_agent.llm.fake_client import FakeLLMClient
 from incident_pilot_agent.tools.base import Tool, ToolResult
 
@@ -99,3 +100,113 @@ async def test_retry_exhausted_returns_empty_cleanly():
     )
 
     assert records == []
+
+
+class _InfiniteToolRequestingClient(LLMClient):
+    """Always requests exactly one more tool call and never stops on its
+    own -- used to prove run_tool_loop's max_tool_calls cap actually halts
+    the loop even when the model keeps asking for more (a real model has
+    no such ceiling on its own; the loop must enforce one), and to inspect
+    the final resent message history for trimming behavior. `messages` is
+    the same list object across every call (run_tool_loop only ever
+    .append()s to it, never rebinds it), so capturing a reference here
+    reflects the true final state once the loop finishes -- including
+    trimming done after this stub's last response."""
+
+    def __init__(self) -> None:
+        self.call_count = 0
+        self.last_messages: List[LLMMessage] = []
+
+    async def complete(
+        self, *, system: str, messages: List[LLMMessage], tools=None, max_tokens: int = 1024
+    ) -> LLMResponse:
+        self.last_messages = messages
+        call_id = f"call-{self.call_count}"
+        self.call_count += 1
+        return LLMResponse(
+            content=None,
+            tool_calls=[ToolCallRequest(id=call_id, name="query_prometheus", input={})],
+            stop_reason="tool_use",
+        )
+
+
+class _IndexTaggedPrometheusTool(Tool):
+    """Returns distinguishable, non-trivial data per call so trimmed vs.
+    full-fidelity tool results can be told apart by content."""
+
+    name: ClassVar[str] = "query_prometheus"
+    description: ClassVar[str] = "stub prometheus tool for tests"
+    input_schema: ClassVar[Type[BaseModel]] = _AnyInput
+
+    def __init__(self) -> None:
+        self._n = 0
+
+    async def execute(self, tool_input: BaseModel) -> ToolResult:
+        self._n += 1
+        return ToolResult(
+            tool_name=self.name,
+            ok=True,
+            data={"series": [{"idx": self._n, "padding": "x" * 50}]},
+            query_summary=f"call-{self._n}",
+        )
+
+
+async def test_max_tool_calls_caps_loop_even_when_model_keeps_requesting():
+    """Confirmed live: a single investigator round made 10 sequential tool
+    calls with no ceiling. max_tool_calls must stop the loop once reached,
+    treated as a clean stop (whatever was gathered), not an error."""
+    llm = _InfiniteToolRequestingClient()
+    records = await run_tool_loop(
+        llm,
+        [_IndexTaggedPrometheusTool()],
+        system="system prompt",
+        user_text="Investigate.",
+        max_steps=100,
+        max_tool_calls=5,
+    )
+
+    assert len(records) == 5
+    assert all(r.ok for r in records)
+
+
+def _sent_tool_result_contents(messages: List[LLMMessage]) -> List[str]:
+    return [
+        block["content"]
+        for msg in messages
+        if msg.role == "user"
+        for block in msg.content
+        if block.get("type") == "tool_result"
+    ]
+
+
+async def test_older_tool_results_are_trimmed_but_returned_records_stay_full():
+    """After enough tool calls, older entries in the message list actually
+    resent to the LLM should be the short digest form -- while the
+    returned records (what evidence_from_tool_calls and downstream callers
+    consume) must still carry full-fidelity data for every call,
+    regardless of whether that call's conversation entry was trimmed."""
+    llm = _InfiniteToolRequestingClient()
+    records = await run_tool_loop(
+        llm,
+        [_IndexTaggedPrometheusTool()],
+        system="system prompt",
+        user_text="Investigate.",
+        max_steps=100,
+        max_tool_calls=8,
+        trim_after_calls=5,
+        keep_full_fidelity=3,
+    )
+
+    assert len(records) == 8
+    # Returned records are always full-fidelity, trimmed or not.
+    assert [r.data["series"][0]["idx"] for r in records] == list(range(1, 9))
+
+    contents = _sent_tool_result_contents(llm.last_messages)
+    assert len(contents) == 8
+    trimmed = [c for c in contents if c.startswith("[earlier]")]
+    full = [c for c in contents if not c.startswith("[earlier]")]
+    assert len(trimmed) == 5
+    assert len(full) == 3
+    # The still-full entries actually contain the raw series data.
+    for c in full:
+        assert "padding" in c

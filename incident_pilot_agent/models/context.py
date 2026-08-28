@@ -118,6 +118,31 @@ class DeploymentRecord(BaseModel):
     provenance: Provenance = Provenance.TRUSTED
 
 
+class SourceAvailability(str, Enum):
+    """Mirrors incident-pilot-ecommerce's own SourceStatus enum (app/
+    collectors/base.py) by value, not by import -- this package must not
+    depend on the Gateway directly (see module docstring)."""
+
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+    TIMEOUT = "timeout"
+    PARTIAL = "partial"
+
+
+class SourceStatusEntry(BaseModel):
+    """Per-source outcome of the Gateway's Incident Context Builder run,
+    as GET /incidents/{id}/source-status reports it. Consumed by the
+    Application Investigation Agent to decide which tools are worth
+    offering this round -- see agents/investigator.py."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str
+    status: SourceAvailability
+    error: Optional[str] = None
+    observation_count: int = 0
+
+
 class IncidentContext(BaseModel):
     """The eventual output of the real Context Builder. Fetched only
     through ContextProvider.get_context() — never constructed ad hoc by
@@ -141,3 +166,4 @@ class IncidentContext(BaseModel):
     trace_excerpts: List[TraceExcerpt] = Field(default_factory=list)
     k8s_events: List[K8sEventItem] = Field(default_factory=list)
     recent_deployments: List[DeploymentRecord] = Field(default_factory=list)
+    source_status: List[SourceStatusEntry] = Field(default_factory=list)

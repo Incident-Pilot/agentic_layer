@@ -14,7 +14,13 @@ from pathlib import Path
 from typing import List, Optional
 
 from ..trajectory.logger import TrajectoryEntry
-from .schemas import HypothesisSummary, InvestigationDetail, InvestigationListItem
+from .schemas import (
+    HypothesisSummary,
+    InvestigationDetail,
+    InvestigationListItem,
+    RemediationActionSummary,
+    RemediationPlanSummary,
+)
 
 
 def _trajectory_path(trajectory_dir: Path, incident_id: str) -> Path:
@@ -43,6 +49,9 @@ def _current_hypothesis(entries: List[TrajectoryEntry], hypothesis_id: str) -> O
                 confidence=entry.hypothesis_confidence or 0.0,
                 supporting_evidence=entry.hypothesis_supporting_evidence_ids,
                 contradicting_evidence=entry.hypothesis_contradicting_evidence_ids,
+                causal_chain=entry.hypothesis_causal_chain,
+                affected_services=entry.hypothesis_affected_services,
+                actionable=entry.hypothesis_actionable if entry.hypothesis_actionable is not None else True,
             )
     return None
 
@@ -51,9 +60,24 @@ def _rejected_count(entries: List[TrajectoryEntry]) -> int:
     return sum(1 for e in entries if e.agent == "verifier" and e.verification_verdict == "REJECTED")
 
 
+def _current_remediation_plan(entries: List[TrajectoryEntry], hypothesis_id: str) -> Optional[RemediationPlanSummary]:
+    # Only agents/remediation_planner.py's own entries ever carry
+    # remediation_actions -- absent (empty) on every other agent's entry,
+    # so the most recent entry for this hypothesis_id that has any is
+    # authoritative, same pattern as _current_hypothesis above.
+    for entry in reversed(entries):
+        if entry.hypothesis_id == hypothesis_id and entry.agent == "remediation_planner" and entry.remediation_actions:
+            return RemediationPlanSummary(
+                hypothesis_id=hypothesis_id,
+                actions=[RemediationActionSummary(**a.model_dump()) for a in entry.remediation_actions],
+            )
+    return None
+
+
 def _to_detail(incident_id: str, entries: List[TrajectoryEntry]) -> InvestigationDetail:
     last = entries[-1]
     hypothesis = _current_hypothesis(entries, last.hypothesis_id) if last.hypothesis_id else None
+    remediation_plan = _current_remediation_plan(entries, last.hypothesis_id) if last.hypothesis_id else None
     return InvestigationDetail(
         incident_id=incident_id,
         phase=last.phase,
@@ -63,6 +87,7 @@ def _to_detail(incident_id: str, entries: List[TrajectoryEntry]) -> Investigatio
         rejected_hypotheses_count=_rejected_count(entries),
         updated_at=last.timestamp,
         reasoning_summary=last.reasoning_summary,
+        remediation_plan=remediation_plan,
     )
 
 

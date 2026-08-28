@@ -8,6 +8,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+from ..models.remediation import REMEDIATION_DISCLAIMER
+
 
 class HypothesisSummary(BaseModel):
     id: str
@@ -15,6 +17,23 @@ class HypothesisSummary(BaseModel):
     confidence: float
     supporting_evidence: List[str]
     contradicting_evidence: List[str]
+    causal_chain: List[str]
+    affected_services: List[str]
+    actionable: bool
+
+
+class RemediationActionSummary(BaseModel):
+    description: str
+    target: str
+    action_type: str
+    risk_level: str
+    rationale: str
+
+
+class RemediationPlanSummary(BaseModel):
+    hypothesis_id: str
+    actions: List[RemediationActionSummary]
+    disclaimer: str = REMEDIATION_DISCLAIMER
 
 
 class InvestigationDetail(BaseModel):
@@ -26,6 +45,9 @@ class InvestigationDetail(BaseModel):
     rejected_hypotheses_count: int
     updated_at: datetime
     reasoning_summary: str
+    # None on every path except a CONFIRMED, actionable hypothesis that
+    # reached the remediation planner node -- see graph/build.py.
+    remediation_plan: Optional[RemediationPlanSummary] = None
 
 
 class InvestigationListItem(BaseModel):

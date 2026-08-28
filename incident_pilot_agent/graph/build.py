@@ -2,20 +2,25 @@
 
     DETECTED -> INVESTIGATING -> HYPOTHESIS_GENERATED -> VERIFYING
         -> ROOT_CAUSE_CONFIRMED
+            -> (if hypothesis.actionable) -> REMEDIATION_PROPOSED
         -> (or) VERIFICATION_FAILED -> back to INVESTIGATING (replan)
         -> (or) ESCALATED (max iterations exceeded)
 
 Nodes: orchestrator -> investigator -> synthesizer -> verifier, with a
-conditional edge after verifier that either ends the run (CONFIRMED),
+conditional edge after verifier that routes to the remediation planner only
+on a genuine CONFIRMED verdict for an actionable hypothesis, ends the run
+at ROOT_CAUSE_CONFIRMED for a CONFIRMED-but-not-actionable null finding,
 loops back to orchestrator (REJECTED, iteration budget remaining), or ends
-as ESCALATED (REJECTED, budget exhausted). No remediation states exist
-past ROOT_CAUSE_CONFIRMED -- out of scope for this phase.
+as ESCALATED (REJECTED, budget exhausted).
 """
+
+from typing import Optional
 
 from langgraph.graph import END, StateGraph
 
 from ..agents.investigator import ApplicationInvestigationAgent
 from ..agents.orchestrator import Orchestrator
+from ..agents.remediation_planner import RemediationPlanner
 from ..agents.synthesizer import HypothesisSynthesizer
 from ..agents.verifier import VerificationAgent
 from ..llm.base import LLMClient
@@ -31,23 +36,41 @@ from .state import (
 
 def _route_after_verifier(state: AgentState) -> str:
     if state.get("final_status") == "CONFIRMED":
-        return "confirmed"
+        hypothesis = next(h for h in state["hypotheses"] if h.hypothesis_id == state["current_hypothesis_id"])
+        return "confirmed_actionable" if hypothesis.actionable else "confirmed_not_actionable"
     if state["iteration"] >= state["max_iterations"]:
         return "escalated"
     return "replan"
 
 
-def build_graph(llm: LLMClient, tools: list[Tool], trajectory: TrajectoryLogger):
+def build_graph(
+    llm: LLMClient,
+    tools: list[Tool],
+    trajectory: TrajectoryLogger,
+    *,
+    investigator_llm: Optional[LLMClient] = None,
+    synthesizer_llm: Optional[LLMClient] = None,
+    verifier_llm: Optional[LLMClient] = None,
+    remediation_llm: Optional[LLMClient] = None,
+):
+    """`llm` is the shared default; investigator_llm/synthesizer_llm/
+    verifier_llm/remediation_llm each override it for that one node only, so
+    a caller that wants tiered models (see cli.py's per-node
+    OPENROUTER_MODEL overrides) can pass distinct clients while every
+    existing call site that just passes `llm` keeps working unchanged --
+    purely additive."""
     orchestrator = Orchestrator(trajectory)
-    investigator = ApplicationInvestigationAgent(llm, tools, trajectory)
-    synthesizer = HypothesisSynthesizer(llm, trajectory)
-    verifier = VerificationAgent(llm, tools, trajectory)
+    investigator = ApplicationInvestigationAgent(investigator_llm or llm, tools, trajectory)
+    synthesizer = HypothesisSynthesizer(synthesizer_llm or llm, trajectory)
+    verifier = VerificationAgent(verifier_llm or llm, tools, trajectory)
+    remediation_planner = RemediationPlanner(remediation_llm or llm, trajectory)
 
     graph = StateGraph(AgentState)
     graph.add_node("orchestrator", orchestrator)
     graph.add_node("investigator", investigator)
     graph.add_node("synthesizer", synthesizer)
     graph.add_node("verifier", verifier)
+    graph.add_node("remediation_planner", remediation_planner)
 
     graph.set_entry_point("orchestrator")
     # Orchestrator's dispatch_targets is a list so adding a second
@@ -60,8 +83,14 @@ def build_graph(llm: LLMClient, tools: list[Tool], trajectory: TrajectoryLogger)
     graph.add_conditional_edges(
         "verifier",
         _route_after_verifier,
-        {"confirmed": END, "escalated": END, "replan": "orchestrator"},
+        {
+            "confirmed_actionable": "remediation_planner",
+            "confirmed_not_actionable": END,
+            "escalated": END,
+            "replan": "orchestrator",
+        },
     )
+    graph.add_edge("remediation_planner", END)
 
     return graph.compile()
 
@@ -79,6 +108,7 @@ def initial_state(incident_context, max_iterations: int = 4) -> AgentState:
         iteration=0,
         max_iterations=max_iterations,
         final_status=None,
+        remediation_plan=None,
     )
 
 

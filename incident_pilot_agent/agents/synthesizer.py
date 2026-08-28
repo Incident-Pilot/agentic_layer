@@ -23,9 +23,16 @@ _ROLE_DESCRIPTION = (
     "instead of being a downstream symptom. Never repeat a root_cause already listed in "
     "rejected_hypotheses; if the evidence still points that way, refine it or pick the next "
     "most likely candidate.\n\n"
+    "Also judge explicitly whether this represents a real problem to remediate: set "
+    "\"actionable\": true when root_cause identifies a genuine fault, and \"actionable\": "
+    "false when the evidence points to no real anomaly (a null finding -- e.g. metrics "
+    "stable, no errors, nothing to fix) and root_cause is only recording that absence of a "
+    "problem. Do not leave this to be inferred from the wording of root_cause later -- set "
+    "it as its own field based on the same judgment.\n\n"
     "Respond with ONLY a JSON object (no markdown fences, no prose) with this shape:\n"
     '{"root_cause": str, "causal_chain": [str, ...], "affected_services": [str, ...], '
-    '"confidence": float between 0 and 1, "supporting_evidence_ids": [str, ...]}'
+    '"confidence": float between 0 and 1, "supporting_evidence_ids": [str, ...], '
+    '"actionable": bool}'
 )
 
 
@@ -82,6 +89,7 @@ class HypothesisSynthesizer:
             affected_services=parsed.get("affected_services", []),
             supporting_evidence_ids=parsed.get("supporting_evidence_ids", []),
             confidence=float(parsed.get("confidence", 0.5)),
+            actionable=bool(parsed.get("actionable", True)),
             round=round_num,
         )
 
@@ -94,6 +102,9 @@ class HypothesisSynthesizer:
             hypothesis_description=hypothesis.root_cause,
             hypothesis_confidence=hypothesis.confidence,
             hypothesis_supporting_evidence_ids=hypothesis.supporting_evidence_ids,
+            hypothesis_causal_chain=hypothesis.causal_chain,
+            hypothesis_affected_services=hypothesis.affected_services,
+            hypothesis_actionable=hypothesis.actionable,
         )
 
         return {
