@@ -14,7 +14,7 @@ class LokiQueryInput(BaseModel):
     logql: str = Field(..., description="LogQL query, e.g. '{namespace=\"prod\"} |~ \"(?i)redis|timeout\"'")
     start: datetime = Field(..., description="Window start, ISO 8601 UTC")
     end: datetime = Field(..., description="Window end, ISO 8601 UTC")
-    limit: int = Field(200, description="Max log lines to return")
+    limit: int = Field(200, ge=1, le=500, description="Max log lines to return")
 
 
 class LokiTool(Tool):
