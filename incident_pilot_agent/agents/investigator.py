@@ -14,6 +14,7 @@ from datetime import timedelta
 from typing import List
 
 from ..llm.base import LLMClient
+from ..models.context import IncidentContext, SourceAvailability
 from ..models.evidence import Evidence, EvidenceType
 from ..tools.base import Tool
 from ..trajectory.logger import TrajectoryLogger
@@ -26,10 +27,56 @@ _ROLE_DESCRIPTION = (
     "You are the Application Investigation Agent for an incident response system. "
     "Given the CONTEXT below (affected services, time window, and metric names already "
     "known from pre-aggregated incident context), use the available read-only tools "
-    "(query_prometheus, query_loki, query_tempo) to gather additional evidence about what "
-    "is happening in these services. Query broadly across metrics, logs, and traces -- do "
-    "not fixate on a single signal. When you have enough data, stop calling tools."
+    "to gather additional evidence about what is happening in these services. Query "
+    "broadly across metrics, logs, and traces -- do not fixate on a single signal. When "
+    "you have enough data, stop calling tools. Tools for sources the Gateway found "
+    "completely unavailable are not offered this round -- don't ask for them. "
+    "CONTEXT.empty_sources lists sources that were reachable but returned zero "
+    "observations during the Gateway's initial (narrower) collection window; their "
+    "tools are still offered here since that absence doesn't guarantee there's nothing "
+    "there -- consider an independent check (e.g. a broader time window) if the "
+    "incident still looks unexplained by other evidence."
 )
+
+# Maps a source-status `source` name (as the Gateway reports it) to the
+# Tool.name that queries it. Only sources this repo has a corresponding
+# tool for are listed here -- "alertmanager", "kubernetes", "deployment"
+# have no query_* tool and are irrelevant to tool-list pruning.
+_SOURCE_TO_TOOL_NAME = {
+    "prometheus": "query_prometheus",
+    "loki": "query_loki",
+    "tempo": "query_tempo",
+}
+
+
+def _select_tools(tools: List[Tool], context: IncidentContext) -> List[Tool]:
+    """Drops a tool only when its source-status is genuinely UNAVAILABLE
+    (a real connectivity/auth failure the Gateway hit while building this
+    context -- re-querying it live will fail the same way regardless of
+    query or time window). Deliberately does NOT drop a tool just because
+    its source-status shows `observation_count: 0` with status AVAILABLE
+    -- that only reflects the Gateway's own initial collection window,
+    which may be narrower than what the investigator queries; see
+    CONTEXT.empty_sources in _ROLE_DESCRIPTION for the softer nudge used
+    for that case instead."""
+    unavailable_sources = {
+        entry.source for entry in context.source_status if entry.status == SourceAvailability.UNAVAILABLE
+    }
+    unavailable_tool_names = {
+        tool_name for source, tool_name in _SOURCE_TO_TOOL_NAME.items() if source in unavailable_sources
+    }
+    return [t for t in tools if t.name not in unavailable_tool_names]
+
+
+def _empty_but_available_sources(context: IncidentContext) -> List[str]:
+    return [
+        entry.source
+        for entry in context.source_status
+        if entry.source in _SOURCE_TO_TOOL_NAME
+        and entry.status == SourceAvailability.AVAILABLE
+        and entry.observation_count == 0
+    ]
+
 
 # Appended to _ROLE_DESCRIPTION only when rejected hypotheses exist -- i.e.
 # this round is a redispatch, not the first investigation. A redispatch
@@ -88,6 +135,7 @@ class ApplicationInvestigationAgent:
             previous_rejection_reason = rejected[-1].rejection_reason or rejected[-1].root_cause
 
         notable_signals = _notable_signals(state.get("evidence", []) + new_evidence)
+        available_tools = _select_tools(self._tools, context)
 
         ctx_payload = {
             "namespace": context.affected_namespace or "default",
@@ -96,6 +144,7 @@ class ApplicationInvestigationAgent:
             "window_end": window_end.isoformat(),
             "metric_names": metric_names,
             "notable_signals": notable_signals,
+            "empty_sources": _empty_but_available_sources(context),
             "previous_rejection_reason": previous_rejection_reason,
         }
         role_description = _ROLE_DESCRIPTION + (_REDISPATCH_ADDENDUM if rejected else "")
@@ -104,7 +153,7 @@ class ApplicationInvestigationAgent:
         is_redispatch = bool(rejected)
         records = await run_tool_loop(
             self._llm,
-            self._tools,
+            available_tools,
             system=system,
             user_text="Investigate this incident using the available tools, guided by the CONTEXT in the system prompt.",
             max_steps=10,
