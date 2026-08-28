@@ -10,6 +10,7 @@ from typing import Annotated, List, Optional, TypedDict
 from ..models.context import IncidentContext
 from ..models.evidence import Evidence
 from ..models.hypothesis import Hypothesis
+from ..models.remediation import RemediationPlan
 from ..models.verification import Verification
 
 PHASE_DETECTED = "DETECTED"
@@ -19,6 +20,7 @@ PHASE_VERIFYING = "VERIFYING"
 PHASE_ROOT_CAUSE_CONFIRMED = "ROOT_CAUSE_CONFIRMED"
 PHASE_VERIFICATION_FAILED = "VERIFICATION_FAILED"
 PHASE_ESCALATED = "ESCALATED"
+PHASE_REMEDIATION_PROPOSED = "REMEDIATION_PROPOSED"
 
 
 class AgentState(TypedDict):
@@ -36,3 +38,10 @@ class AgentState(TypedDict):
     iteration: int
     max_iterations: int
     final_status: Optional[str]
+
+    # Set only by the remediation planner node, only ever reached when
+    # final_status == "CONFIRMED" and the confirmed hypothesis is
+    # actionable (see graph/build.py's _route_after_verifier). Remains
+    # None on every other path, including a genuine null-finding
+    # confirmation and the escalated/rejected paths.
+    remediation_plan: Optional[RemediationPlan]
