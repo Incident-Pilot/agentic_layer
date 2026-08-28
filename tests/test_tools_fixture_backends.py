@@ -35,6 +35,66 @@ async def test_prometheus_tool_unmatched_query_falls_back_to_default_empty_serie
     assert result.data["series"] == []
 
 
+class _NetworkCallingBackend:
+    """A backend that fails the test if it's ever actually called -- used to
+    prove bare-selector rejection happens before the query reaches the
+    backend, the same way a real network call would be avoided."""
+
+    async def query_range(self, promql, start, end, step: str = "30s"):
+        raise AssertionError("backend should not be called for a rejected query")
+
+
+async def test_prometheus_tool_rejects_bare_label_selector_without_hitting_backend():
+    tool = PrometheusTool(_NetworkCallingBackend())
+    result = await tool.execute(
+        PrometheusQueryInput(promql='{namespace="cloudmart-prod", pod=~"order-service.*"}', start=START, end=END)
+    )
+    assert not result.ok
+    assert "no metric name" in result.error
+
+
+async def test_prometheus_tool_allows_normal_scoped_query():
+    tool = PrometheusTool(FixturePrometheusBackend(FIXTURE_DIR))
+    result = await tool.execute(
+        PrometheusQueryInput(promql='cpu_usage_seconds{namespace="cloudmart-prod"}', start=START, end=END)
+    )
+    assert result.ok
+    assert result.data["series"]
+
+
+class _ManySeriesBackend:
+    """Returns a matrix result with more series than the truncation cap, to
+    exercise total_series_count/series_shown without needing real cluster
+    data."""
+
+    def __init__(self, series_count: int):
+        self._series_count = series_count
+
+    async def query_range(self, promql, start, end, step: str = "30s"):
+        from incident_pilot_agent.telemetry.adapter_result import AdapterResult, SourceStatus
+
+        result = {
+            "resultType": "matrix",
+            "result": [
+                {
+                    "metric": {"__name__": "up", "pod": f"order-service-{i}"},
+                    "values": [[1000, str(float(i))], [1030, str(float(i) + i)]],
+                }
+                for i in range(self._series_count)
+            ],
+        }
+        return AdapterResult(status=SourceStatus.AVAILABLE, data=result)
+
+
+async def test_prometheus_tool_caps_series_count_and_reports_totals():
+    tool = PrometheusTool(_ManySeriesBackend(series_count=200))
+    result = await tool.execute(PrometheusQueryInput(promql='up{namespace="cloudmart-prod"}', start=START, end=END))
+    assert result.ok
+    assert result.data["total_series_count"] == 200
+    assert result.data["series_shown"] == 50
+    assert len(result.data["series"]) == 50
+
+
 async def test_loki_tool_broad_query_excludes_redis_bucket():
     tool = LokiTool(FixtureLokiBackend(FIXTURE_DIR))
     result = await tool.execute(

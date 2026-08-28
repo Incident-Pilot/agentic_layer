@@ -25,13 +25,14 @@ def test_health_requires_no_auth():
 def test_get_investigation_against_real_trajectory_fixture():
     """inc-001-redis-cascade.trajectory.json is a real trajectory produced
     by actually running the graph (see tests/fixtures/trajectories/README.md),
-    round 1 rejected -> round 2 confirmed -- not a hand-built shape."""
+    round 1 rejected -> round 2 confirmed -> remediation proposed -- not a
+    hand-built shape."""
     response = _client().get("/investigations/inc-001-redis-cascade", headers=_auth())
     assert response.status_code == 200
 
     body = response.json()
     assert body["incident_id"] == "inc-001-redis-cascade"
-    assert body["phase"] == "ROOT_CAUSE_CONFIRMED"
+    assert body["phase"] == "REMEDIATION_PROPOSED"
     assert body["iteration"] == 2
     assert body["verification_verdict"] == "CONFIRMED"
     assert body["rejected_hypotheses_count"] == 1
@@ -42,6 +43,12 @@ def test_get_investigation_against_real_trajectory_fixture():
     assert hypothesis["confidence"] == 0.88
     assert hypothesis["supporting_evidence"]
     assert hypothesis["contradicting_evidence"] == []
+
+    plan = body["remediation_plan"]
+    assert plan["hypothesis_id"] == hypothesis["id"]
+    assert plan["actions"]
+    assert plan["actions"][0]["action_type"] == "rollback_deployment"
+    assert plan["disclaimer"]
 
 
 def test_get_investigation_missing_incident_returns_404():
@@ -70,7 +77,7 @@ def test_list_investigations_is_a_compact_subset_of_the_detail_shape():
 
     items = response.json()
     item = next(i for i in items if i["incident_id"] == "inc-001-redis-cascade")
-    assert item["phase"] == "ROOT_CAUSE_CONFIRMED"
+    assert item["phase"] == "REMEDIATION_PROPOSED"
     assert item["confidence"] == 0.88
     assert item["updated_at"]
 

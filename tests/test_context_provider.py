@@ -7,7 +7,7 @@ import pytest
 from incident_pilot_agent.agents.evidence_extraction import evidence_from_context
 from incident_pilot_agent.context_provider.fixture_provider import FixtureContextProvider
 from incident_pilot_agent.context_provider.gateway_provider import GatewayContextProvider
-from incident_pilot_agent.models.context import Provenance
+from incident_pilot_agent.models.context import Provenance, SourceAvailability
 from incident_pilot_agent.models.evidence import EvidenceType
 
 FIXTURES_ROOT = Path(__file__).resolve().parent.parent / "fixtures" / "incidents"
@@ -126,6 +126,18 @@ async def test_gateway_context_provider_maps_real_incident_shape():
         edge.from_service == "order-service" and edge.to_service == "product-service"
         for edge in context.service_topology
     )
+
+    # /source-status -- previously only logged (_log_source_status), now
+    # also attached to IncidentContext so the investigator can act on it
+    # (see agents/investigator.py's _select_tools). The fixture has
+    # loki/tempo AVAILABLE with observation_count 0, matching every real
+    # run tonight -- not UNAVAILABLE, so their tools must stay offered.
+    assert {s.source for s in context.source_status} == {
+        "alertmanager", "deployment", "kubernetes", "loki", "prometheus", "tempo",
+    }
+    loki_status = next(s for s in context.source_status if s.source == "loki")
+    assert loki_status.status == SourceAvailability.AVAILABLE
+    assert loki_status.observation_count == 0
 
     # The real Gateway /evidence for this incident returns 7 items, but only
     # 6 are seeded as investigator evidence (3 metrics + 2 k8s events + 1
@@ -270,3 +282,153 @@ def test_gateway_context_provider_requires_base_url_and_api_key():
         GatewayContextProvider(base_url="", api_key="k")
     with pytest.raises(ValueError):
         GatewayContextProvider(base_url="http://gateway.internal:8000", api_key="")
+
+
+# --- retry-with-backoff on connection-level failures (SSH tunnel + kubectl
+# port-forward bridge occasionally stalls/drops mid-request) ---------------
+
+
+async def test_get_json_retries_read_timeout_then_succeeds(monkeypatch):
+    monkeypatch.setattr("incident_pilot_agent.context_provider.gateway_provider.asyncio.sleep", _no_sleep)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise httpx.ReadTimeout("stalled tunnel", request=request)
+        return httpx.Response(200, json={"ok": True})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GatewayContextProvider(base_url="http://gateway.internal:8000", api_key="k", client=client)
+
+    result = await provider._get_json(client, "/topology")
+    await client.aclose()
+
+    assert result == {"ok": True}
+    assert calls["n"] == 3
+
+
+async def test_get_json_does_not_retry_real_http_errors():
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(404, json={"detail": "not found"})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GatewayContextProvider(base_url="http://gateway.internal:8000", api_key="k", client=client)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await provider._get_json(client, "/incidents/does-not-exist")
+    await client.aclose()
+
+    assert calls["n"] == 1
+
+
+async def test_get_json_retries_remote_protocol_error_then_succeeds(monkeypatch):
+    monkeypatch.setattr("incident_pilot_agent.context_provider.gateway_provider.asyncio.sleep", _no_sleep)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response", request=request)
+        return httpx.Response(200, json={"ok": True})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GatewayContextProvider(base_url="http://gateway.internal:8000", api_key="k", client=client)
+
+    result = await provider._get_json(client, "/topology")
+    await client.aclose()
+
+    assert result == {"ok": True}
+    assert calls["n"] == 3
+
+
+async def test_get_json_raises_after_exhausting_retries(monkeypatch):
+    monkeypatch.setattr("incident_pilot_agent.context_provider.gateway_provider.asyncio.sleep", _no_sleep)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        raise httpx.ConnectError("tunnel down", request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GatewayContextProvider(base_url="http://gateway.internal:8000", api_key="k", client=client)
+
+    with pytest.raises(httpx.ConnectError):
+        await provider._get_json(client, "/topology")
+    await client.aclose()
+
+    assert calls["n"] == 3
+
+
+async def _no_sleep(_seconds: float) -> None:
+    """Replaces asyncio.sleep in retry-backoff tests so they run instantly."""
+
+
+# --- /topology: longer per-call timeout + non-fatal on exhausted retries
+# (measured 2.4s on a direct, un-tunneled Gateway call -- vs. <100ms for
+# every other endpoint here -- so it alone gets more timeout headroom, and
+# a genuinely dead tunnel degrades to an empty topology rather than
+# crashing the whole get_context() call before the investigation starts) --
+
+
+async def test_get_json_applies_per_call_timeout_override():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["timeout"] = request.extensions.get("timeout")
+        return httpx.Response(200, json={"topology": {}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GatewayContextProvider(base_url="http://gateway.internal:8000", api_key="k", client=client)
+
+    result = await provider._get_json(client, "/topology", timeout_seconds=30.0)
+    await client.aclose()
+
+    assert result == {"topology": {}}
+    # confirms the override actually reached the request, not just the default
+    assert captured["timeout"]["read"] == 30.0
+
+
+async def test_get_context_degrades_gracefully_when_topology_exhausts_retries(monkeypatch):
+    monkeypatch.setattr("incident_pilot_agent.context_provider.gateway_provider.asyncio.sleep", _no_sleep)
+    incident_id = "INC-FD9FA255"
+    fixtures_dir = GATEWAY_FIXTURES_ROOT / incident_id
+    responses = {
+        f"/incidents/{incident_id}": _load(fixtures_dir / "incident.json"),
+        f"/incidents/{incident_id}/evidence": _load(fixtures_dir / "evidence.json"),
+        f"/incidents/{incident_id}/source-status": _load(fixtures_dir / "source_status.json"),
+        f"/incidents/{incident_id}/timeline": _load(fixtures_dir / "timeline.json"),
+    }
+    topology_calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/topology":
+            topology_calls["n"] += 1
+            raise httpx.ReadTimeout("tunnel dead", request=request)
+        return httpx.Response(200, json=responses[path])
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = GatewayContextProvider(base_url="http://gateway.internal:8000", api_key="test-api-key", client=client)
+
+    context = await provider.get_context(incident_id)
+    await client.aclose()
+
+    # /topology exhausted all 3 retry attempts but did not raise out of
+    # get_context() -- the failure is isolated to this one field.
+    assert topology_calls["n"] == 3
+    assert context.service_topology == []
+
+    # every other field still populated normally, same values as the
+    # happy-path test (test_gateway_context_provider_maps_real_incident_shape)
+    assert context.incident_id == incident_id
+    assert context.title == "HighHTTPErrorRate"
+    assert context.severity == "critical"
+    assert context.affected_services == ["order-service"]
+    assert len(context.metrics_summary) == 3
+    assert len(context.k8s_events) == 2
+    assert len(context.recent_deployments) == 1
+    assert len(context.timeline) == 14
