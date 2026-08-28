@@ -10,11 +10,14 @@ was built for -- no agent code changes to switch providers.
 """
 
 import json
+import logging
 from typing import Any, Dict, List, Optional
 
 from openai import AsyncOpenAI
 
 from .base import LLMClient, LLMMessage, LLMResponse, ToolCallRequest
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gpt-4o"
 
@@ -84,6 +87,14 @@ class OpenAILLMClient(LLMClient):
             max_tokens=max_tokens,
             **kwargs,
         )
+
+        if response.usage:
+            logger.info(
+                "llm usage: prompt=%d completion=%d total=%d",
+                response.usage.prompt_tokens,
+                response.usage.completion_tokens,
+                response.usage.total_tokens,
+            )
 
         choice = response.choices[0]
         tool_calls = [

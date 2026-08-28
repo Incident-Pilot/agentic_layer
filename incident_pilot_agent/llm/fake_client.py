@@ -24,6 +24,10 @@ non-fixture-specific heuristics per task:
   an uncited deployment; REJECTED also if there is neither resolved
   supporting_evidence nor any newly-gathered evidence to confirm against
   (silence is not grounds for confirmation); CONFIRMED otherwise.
+- propose-remediation: always proposes one low-risk restart_pod action
+  targeting the hypothesis's first affected service -- only ever reached
+  in a test/fake run when a hypothesis is both CONFIRMED and actionable,
+  so there is no branching to simulate here.
 
 A real LLMClient (AnthropicLLMClient) makes all of these judgment calls
 via genuine reasoning instead.
@@ -105,6 +109,8 @@ class FakeLLMClient(LLMClient):
             return self._synthesize_hypothesis(_extract_json(_last_user_text(messages)))
         if task == "verify-decide":
             return self._verify_decide(_extract_json(_last_user_text(messages)))
+        if task == "propose-remediation":
+            return self._propose_remediation(_extract_json(_last_user_text(messages)))
 
         raise ValueError(f"FakeLLMClient: unrecognized task {task!r}")
 
@@ -185,7 +191,7 @@ class FakeLLMClient(LLMClient):
         deployments = payload.get("recent_deployments", [])
         k8s_events = payload.get("k8s_events", [])
 
-        def respond(root_cause, chain, services, supporting, confidence) -> LLMResponse:
+        def respond(root_cause, chain, services, supporting, confidence, actionable=True) -> LLMResponse:
             return LLMResponse(
                 content=json.dumps(
                     {
@@ -194,6 +200,7 @@ class FakeLLMClient(LLMClient):
                         "affected_services": services,
                         "confidence": confidence,
                         "supporting_evidence_ids": supporting,
+                        "actionable": actionable,
                     }
                 )
             )
@@ -273,7 +280,7 @@ class FakeLLMClient(LLMClient):
                 0.3,
             )
 
-        return respond("Insufficient evidence to determine root cause", [], [], [], 0.1)
+        return respond("Insufficient evidence to determine root cause", [], [], [], 0.1, actionable=False)
 
     @staticmethod
     def _verify_decide(payload: Dict[str, Any]) -> LLMResponse:
@@ -311,3 +318,16 @@ class FakeLLMClient(LLMClient):
             else "An earlier deployment exists but the targeted query found no corroborating evidence; hypothesis stands."
         )
         return LLMResponse(content=json.dumps({"verdict": "CONFIRMED", "reasoning_summary": reasoning, "counter_evidence_ids": []}))
+
+    @staticmethod
+    def _propose_remediation(payload: Dict[str, Any]) -> LLMResponse:
+        hypothesis = payload.get("hypothesis", {})
+        services = hypothesis.get("affected_services") or ["unknown-service"]
+        action = {
+            "description": f"Restart affected pods for {services[0]} to clear the current failure state.",
+            "target": services[0],
+            "action_type": "restart_pod",
+            "risk_level": "low",
+            "rationale": hypothesis.get("root_cause") or "Confirmed root cause requires remediation.",
+        }
+        return LLMResponse(content=json.dumps({"actions": [action]}))
