@@ -18,7 +18,7 @@ import signal
 import sys
 import traceback
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import httpx
 import uvicorn
@@ -43,8 +43,18 @@ from .trajectory.logger import TrajectoryLogger
 logger = logging.getLogger(__name__)
 
 
-def _build_llm(name: str) -> LLMClient:
+def _build_llm(name: str, *, model: Optional[str] = None, node: str = "") -> LLMClient:
+    # Logs the model actually resolved (post env-var/.env/hardcoded-default
+    # fallback, or a `model` override from a caller) for whichever provider
+    # was selected -- this is the one place in the codebase that always runs
+    # before any LLM API call, so it's the single source of truth for
+    # "which model ran" without having to infer it after the fact from a
+    # provider's own dashboard. `node` (e.g. "investigator") is purely a log
+    # label -- run_incident() calls this once per graph node so tiered
+    # models (see config.INVESTIGATOR_MODEL/etc.) are distinguishable here.
+    node_label = f"node={node} " if node else ""
     if name == "fake":
+        logger.info("llm: %sprovider=fake model=n/a", node_label)
         return FakeLLMClient()
     if name == "anthropic":
         if not config.ANTHROPIC_API_KEY:
@@ -52,33 +62,90 @@ def _build_llm(name: str) -> LLMClient:
             sys.exit(1)
         from .llm.anthropic_client import AnthropicLLMClient
 
-        return AnthropicLLMClient(api_key=config.ANTHROPIC_API_KEY, model=config.ANTHROPIC_MODEL)
+        resolved_model = model or config.ANTHROPIC_MODEL
+        logger.info("llm: %sprovider=anthropic model=%s", node_label, resolved_model)
+        return AnthropicLLMClient(api_key=config.ANTHROPIC_API_KEY, model=resolved_model)
     if name == "openai":
         if not config.OPENAI_API_KEY:
             print("error: --llm openai requires OPENAI_API_KEY to be set", file=sys.stderr)
             sys.exit(1)
         from .llm.openai_client import OpenAILLMClient
 
-        return OpenAILLMClient(api_key=config.OPENAI_API_KEY, model=config.OPENAI_MODEL)
+        resolved_model = model or config.OPENAI_MODEL
+        logger.info("llm: %sprovider=openai model=%s", node_label, resolved_model)
+        return OpenAILLMClient(api_key=config.OPENAI_API_KEY, model=resolved_model)
     if name == "gemini":
         if not config.GEMINI_API_KEY:
             print("error: --llm gemini requires GEMINI_API_KEY to be set", file=sys.stderr)
             sys.exit(1)
         from .llm.gemini_client import GeminiLLMClient
 
-        return GeminiLLMClient(api_key=config.GEMINI_API_KEY, model=config.GEMINI_MODEL)
+        resolved_model = model or config.GEMINI_MODEL
+        logger.info("llm: %sprovider=gemini model=%s", node_label, resolved_model)
+        return GeminiLLMClient(api_key=config.GEMINI_API_KEY, model=resolved_model)
     if name == "openrouter":
         if not config.OPENROUTER_API_KEY:
             print("error: --llm openrouter requires OPENROUTER_API_KEY to be set", file=sys.stderr)
             sys.exit(1)
         from .llm.openai_client import OpenAILLMClient
 
+        resolved_model = model or config.OPENROUTER_MODEL
+        logger.info("llm: %sprovider=openrouter model=%s", node_label, resolved_model)
         return OpenAILLMClient(
             api_key=config.OPENROUTER_API_KEY,
-            model=config.OPENROUTER_MODEL,
+            model=resolved_model,
             base_url=config.OPENROUTER_BASE_URL,
         )
+    if name == "bedrock":
+        if not config.BEDROCK_API_KEY:
+            print("error: --llm bedrock requires AWS_BEARER_TOKEN_BEDROCK to be set", file=sys.stderr)
+            sys.exit(1)
+        from .llm.openai_client import OpenAILLMClient
+
+        resolved_model = model or config.BEDROCK_MODEL
+        logger.info("llm: %sprovider=bedrock model=%s", node_label, resolved_model)
+        return OpenAILLMClient(
+            api_key=config.BEDROCK_API_KEY,
+            model=resolved_model,
+            base_url=config.BEDROCK_BASE_URL,
+        )
     raise ValueError(f"unknown --llm {name!r}")
+
+
+# config.INVESTIGATOR_MODEL/SYNTHESIZER_MODEL/VERIFIER_MODEL (OpenRouter) and
+# config.BEDROCK_INVESTIGATOR_MODEL/etc. (Bedrock) are each namespaced to
+# their own provider's model-id form (e.g. "openai/gpt-4o-mini" vs.
+# "anthropic.claude-sonnet-5"), so they only make sense to apply when that
+# same provider is selected via --llm -- passing one to a different
+# provider's SDK directly would just be an invalid model id there. Other
+# providers keep using their single existing *_MODEL config for every node,
+# unaffected.
+def _node_model(llm_name: str, node_model: str) -> Optional[str]:
+    return node_model if llm_name in ("openrouter", "bedrock") else None
+
+
+def _node_models_for(llm_name: str) -> Dict[str, str]:
+    if llm_name == "bedrock":
+        return {
+            "investigator": config.BEDROCK_INVESTIGATOR_MODEL,
+            "synthesizer": config.BEDROCK_SYNTHESIZER_MODEL,
+            "verifier": config.BEDROCK_VERIFIER_MODEL,
+            "remediation": config.BEDROCK_REMEDIATION_MODEL,
+        }
+    return {
+        "investigator": config.INVESTIGATOR_MODEL,
+        "synthesizer": config.SYNTHESIZER_MODEL,
+        "verifier": config.VERIFIER_MODEL,
+        "remediation": config.REMEDIATION_MODEL,
+    }
+
+
+def _build_node_llms(llm_name: str) -> Dict[str, LLMClient]:
+    node_models = _node_models_for(llm_name)
+    return {
+        node: _build_llm(llm_name, model=_node_model(llm_name, node_models[node]), node=node)
+        for node in ("investigator", "synthesizer", "verifier", "remediation")
+    }
 
 
 def _default_llm_name() -> str:
@@ -90,6 +157,8 @@ def _default_llm_name() -> str:
         return "gemini"
     if config.OPENROUTER_API_KEY:
         return "openrouter"
+    if config.BEDROCK_API_KEY:
+        return "bedrock"
     return "fake"
 
 
@@ -146,11 +215,19 @@ async def run_incident(
     provider = _build_context_provider(incident_id, fixtures_root, source)
     context = await provider.get_context(incident_id)
 
-    llm = _build_llm(llm_name)
+    node_llms = _build_node_llms(llm_name)
     tools = _build_tools(provider, incident_id)
     trajectory = TrajectoryLogger(incident_id, trajectory_dir)
 
-    graph = build_graph(llm, tools, trajectory)
+    graph = build_graph(
+        node_llms["investigator"],
+        tools,
+        trajectory,
+        investigator_llm=node_llms["investigator"],
+        synthesizer_llm=node_llms["synthesizer"],
+        verifier_llm=node_llms["verifier"],
+        remediation_llm=node_llms["remediation"],
+    )
     result = await graph.ainvoke(initial_state(context, max_iterations=max_iterations))
     result = finalize_status(result)
 
@@ -321,6 +398,15 @@ def _print_verdict(result: dict) -> None:
         for step in hyp.causal_chain:
             print(f"  - {step}")
         print(f"Affected services: {', '.join(hyp.affected_services)}")
+        print(f"Actionable: {hyp.actionable}")
+
+        plan = result.get("remediation_plan")
+        if plan is not None:
+            print(f"\n=== Remediation plan ({plan.status}) ===")
+            for action in plan.actions:
+                print(f"  - [{action.risk_level}] {action.action_type}: {action.description} (target: {action.target})")
+                print(f"    rationale: {action.rationale}")
+            print(f"\n{plan.disclaimer}")
     else:
         print("\nNo hypothesis survived verification within the iteration budget. Rejected hypotheses:")
         for rejected in result["rejected_hypotheses"]:
@@ -329,13 +415,15 @@ def _print_verdict(result: dict) -> None:
 
 
 def main(argv=None) -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
     parser = argparse.ArgumentParser(prog="incident_pilot_agent")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     run_parser = subparsers.add_parser("run", help="Run the investigation graph against a fixture incident")
     run_parser.add_argument("incident_id", help="Fixture incident id, e.g. inc-001-redis-cascade")
     run_parser.add_argument(
-        "--llm", choices=["fake", "anthropic", "openai", "gemini", "openrouter"], default=_default_llm_name()
+        "--llm", choices=["fake", "anthropic", "openai", "gemini", "openrouter", "bedrock"], default=_default_llm_name()
     )
     run_parser.add_argument("--fixtures-dir", type=Path, default=config.DEFAULT_FIXTURES_DIR)
     run_parser.add_argument("--trajectory-dir", type=Path, default=config.DEFAULT_TRAJECTORY_DIR)
@@ -353,7 +441,7 @@ def main(argv=None) -> None:
         help="Poll the Gateway forever for new ready-for-investigation incidents and investigate each one",
     )
     watch_parser.add_argument(
-        "--llm", choices=["fake", "anthropic", "openai", "gemini", "openrouter"], default=_default_llm_name()
+        "--llm", choices=["fake", "anthropic", "openai", "gemini", "openrouter", "bedrock"], default=_default_llm_name()
     )
     watch_parser.add_argument("--fixtures-dir", type=Path, default=config.DEFAULT_FIXTURES_DIR)
     watch_parser.add_argument("--trajectory-dir", type=Path, default=config.DEFAULT_TRAJECTORY_DIR)
