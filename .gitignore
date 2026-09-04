@@ -7,3 +7,5 @@ __pycache__/
 .ruff_cache/
 /trajectories/
 state/
+
+.DS_Store

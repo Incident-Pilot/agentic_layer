@@ -50,6 +50,15 @@ class InvestigationDetail(BaseModel):
     remediation_plan: Optional[RemediationPlanSummary] = None
 
 
+class InvestigationTriggerResponse(BaseModel):
+    """POST /investigations/{incident_id}'s 202 body -- mirrors the
+    Gateway's own POST /webhooks/alertmanager response convention (202,
+    minimal body), not a new one."""
+
+    incident_id: str
+    status: str = "investigation_started"
+
+
 class InvestigationListItem(BaseModel):
     """A strict subset of InvestigationDetail's fields (same names/types)
     so the dashboard's list and detail views share one parser. `confidence`

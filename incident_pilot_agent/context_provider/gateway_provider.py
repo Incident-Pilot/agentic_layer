@@ -200,6 +200,23 @@ class GatewayContextProvider(ContextProvider):
             source_status=_map_source_status(source_status),
         )
 
+    async def get_current_phase(self, incident_id: str, client: Optional[httpx.AsyncClient] = None) -> Optional[str]:
+        """A single GET /incidents/{id}, returning just `current_phase` --
+        used by the POST /investigations/{incident_id} trigger (api/app.py)
+        to check readiness before dispatching, without pulling in the full
+        evidence/source-status/timeline/topology fetch get_context() does.
+        Reuses _get_json's retry behavior; an injected client (matching
+        get_context()'s own pattern) makes this mockable in tests the same
+        way."""
+        owns_client = client is None
+        active_client = client or httpx.AsyncClient(timeout=self._timeout_seconds)
+        try:
+            incident = await self._get_json(active_client, f"/incidents/{incident_id}")
+        finally:
+            if owns_client:
+                await active_client.aclose()
+        return incident.get("current_phase")
+
     async def _get_json(self, client: httpx.AsyncClient, path: str, timeout_seconds: Optional[float] = None) -> Any:
         url = f"{self._base_url}{path}"
         request_kwargs: Dict[str, Any] = {"headers": {"Authorization": f"Bearer {self._api_key}"}}

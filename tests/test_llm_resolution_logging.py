@@ -40,7 +40,7 @@ def test_build_llm_logs_hardcoded_fallback_when_env_unset(monkeypatch, caplog):
     try:
         assert config.OPENROUTER_MODEL == "openai/gpt-4o-mini"
 
-        with caplog.at_level(logging.INFO, logger="incident_pilot_agent.cli"):
+        with caplog.at_level(logging.INFO, logger="incident_pilot_agent.pipeline"):
             cli._build_llm("openrouter")
 
         assert "provider=openrouter model=openai/gpt-4o-mini" in caplog.text
@@ -55,7 +55,7 @@ def test_build_llm_logs_configured_model_exactly(monkeypatch, caplog):
     try:
         assert config.OPENROUTER_MODEL == "anthropic/claude-haiku-4.5"
 
-        with caplog.at_level(logging.INFO, logger="incident_pilot_agent.cli"):
+        with caplog.at_level(logging.INFO, logger="incident_pilot_agent.pipeline"):
             cli._build_llm("openrouter")
 
         assert "provider=openrouter model=anthropic/claude-haiku-4.5" in caplog.text

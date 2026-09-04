@@ -12,244 +12,33 @@ API of this repo's own.
 
 import argparse
 import asyncio
-import json
 import logging
 import signal
 import sys
 import traceback
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import List, Optional
 
 import httpx
 import uvicorn
 
 from . import config
 from .api.app import create_app
-from .context_provider.base import ContextProvider
-from .context_provider.fixture_provider import FixtureContextProvider
-from .context_provider.gateway_provider import GatewayContextProvider
-from .graph.build import build_graph, finalize_status, initial_state
-from .llm.base import LLMClient
-from .llm.fake_client import FakeLLMClient
-from .telemetry.fixture_backends import FixtureLokiBackend, FixturePrometheusBackend, FixtureTempoBackend
-from .telemetry.loki_client import LokiClient
-from .telemetry.prometheus_client import PrometheusClient
-from .telemetry.tempo_client import TempoClient
-from .tools.loki_tool import LokiTool
-from .tools.prometheus_tool import PrometheusTool
-from .tools.tempo_tool import TempoTool
+from .pipeline import (
+    _build_context_provider,
+    _build_llm,
+    _build_node_llms,
+    _build_tools,
+    _default_llm_name,
+    _load_processed_incidents,
+    _node_model,
+    _node_models_for,
+    _save_processed_incidents,
+    run_incident,
+)
 from .trajectory.logger import TrajectoryLogger
 
 logger = logging.getLogger(__name__)
-
-
-def _build_llm(name: str, *, model: Optional[str] = None, node: str = "") -> LLMClient:
-    # Logs the model actually resolved (post env-var/.env/hardcoded-default
-    # fallback, or a `model` override from a caller) for whichever provider
-    # was selected -- this is the one place in the codebase that always runs
-    # before any LLM API call, so it's the single source of truth for
-    # "which model ran" without having to infer it after the fact from a
-    # provider's own dashboard. `node` (e.g. "investigator") is purely a log
-    # label -- run_incident() calls this once per graph node so tiered
-    # models (see config.INVESTIGATOR_MODEL/etc.) are distinguishable here.
-    node_label = f"node={node} " if node else ""
-    if name == "fake":
-        logger.info("llm: %sprovider=fake model=n/a", node_label)
-        return FakeLLMClient()
-    if name == "anthropic":
-        if not config.ANTHROPIC_API_KEY:
-            print("error: --llm anthropic requires ANTHROPIC_API_KEY to be set", file=sys.stderr)
-            sys.exit(1)
-        from .llm.anthropic_client import AnthropicLLMClient
-
-        resolved_model = model or config.ANTHROPIC_MODEL
-        logger.info("llm: %sprovider=anthropic model=%s", node_label, resolved_model)
-        return AnthropicLLMClient(api_key=config.ANTHROPIC_API_KEY, model=resolved_model)
-    if name == "openai":
-        if not config.OPENAI_API_KEY:
-            print("error: --llm openai requires OPENAI_API_KEY to be set", file=sys.stderr)
-            sys.exit(1)
-        from .llm.openai_client import OpenAILLMClient
-
-        resolved_model = model or config.OPENAI_MODEL
-        logger.info("llm: %sprovider=openai model=%s", node_label, resolved_model)
-        return OpenAILLMClient(api_key=config.OPENAI_API_KEY, model=resolved_model)
-    if name == "gemini":
-        if not config.GEMINI_API_KEY:
-            print("error: --llm gemini requires GEMINI_API_KEY to be set", file=sys.stderr)
-            sys.exit(1)
-        from .llm.gemini_client import GeminiLLMClient
-
-        resolved_model = model or config.GEMINI_MODEL
-        logger.info("llm: %sprovider=gemini model=%s", node_label, resolved_model)
-        return GeminiLLMClient(api_key=config.GEMINI_API_KEY, model=resolved_model)
-    if name == "openrouter":
-        if not config.OPENROUTER_API_KEY:
-            print("error: --llm openrouter requires OPENROUTER_API_KEY to be set", file=sys.stderr)
-            sys.exit(1)
-        from .llm.openai_client import OpenAILLMClient
-
-        resolved_model = model or config.OPENROUTER_MODEL
-        logger.info("llm: %sprovider=openrouter model=%s", node_label, resolved_model)
-        return OpenAILLMClient(
-            api_key=config.OPENROUTER_API_KEY,
-            model=resolved_model,
-            base_url=config.OPENROUTER_BASE_URL,
-        )
-    if name == "bedrock":
-        if not config.BEDROCK_API_KEY:
-            print("error: --llm bedrock requires AWS_BEARER_TOKEN_BEDROCK to be set", file=sys.stderr)
-            sys.exit(1)
-        from .llm.openai_client import OpenAILLMClient
-
-        resolved_model = model or config.BEDROCK_MODEL
-        logger.info("llm: %sprovider=bedrock model=%s", node_label, resolved_model)
-        return OpenAILLMClient(
-            api_key=config.BEDROCK_API_KEY,
-            model=resolved_model,
-            base_url=config.BEDROCK_BASE_URL,
-        )
-    raise ValueError(f"unknown --llm {name!r}")
-
-
-# config.INVESTIGATOR_MODEL/SYNTHESIZER_MODEL/VERIFIER_MODEL (OpenRouter) and
-# config.BEDROCK_INVESTIGATOR_MODEL/etc. (Bedrock) are each namespaced to
-# their own provider's model-id form (e.g. "openai/gpt-4o-mini" vs.
-# "anthropic.claude-sonnet-5"), so they only make sense to apply when that
-# same provider is selected via --llm -- passing one to a different
-# provider's SDK directly would just be an invalid model id there. Other
-# providers keep using their single existing *_MODEL config for every node,
-# unaffected.
-def _node_model(llm_name: str, node_model: str) -> Optional[str]:
-    return node_model if llm_name in ("openrouter", "bedrock") else None
-
-
-def _node_models_for(llm_name: str) -> Dict[str, str]:
-    if llm_name == "bedrock":
-        return {
-            "investigator": config.BEDROCK_INVESTIGATOR_MODEL,
-            "synthesizer": config.BEDROCK_SYNTHESIZER_MODEL,
-            "verifier": config.BEDROCK_VERIFIER_MODEL,
-            "remediation": config.BEDROCK_REMEDIATION_MODEL,
-        }
-    return {
-        "investigator": config.INVESTIGATOR_MODEL,
-        "synthesizer": config.SYNTHESIZER_MODEL,
-        "verifier": config.VERIFIER_MODEL,
-        "remediation": config.REMEDIATION_MODEL,
-    }
-
-
-def _build_node_llms(llm_name: str) -> Dict[str, LLMClient]:
-    node_models = _node_models_for(llm_name)
-    return {
-        node: _build_llm(llm_name, model=_node_model(llm_name, node_models[node]), node=node)
-        for node in ("investigator", "synthesizer", "verifier", "remediation")
-    }
-
-
-def _default_llm_name() -> str:
-    if config.OPENAI_API_KEY:
-        return "openai"
-    if config.ANTHROPIC_API_KEY:
-        return "anthropic"
-    if config.GEMINI_API_KEY:
-        return "gemini"
-    if config.OPENROUTER_API_KEY:
-        return "openrouter"
-    if config.BEDROCK_API_KEY:
-        return "bedrock"
-    return "fake"
-
-
-def _build_context_provider(incident_id: str, fixtures_root: Path, source: str) -> ContextProvider:
-    """`source` is "fixtures", "gateway", or "auto" (default): auto picks
-    gateway only when incident_id doesn't match a local fixture, so existing
-    fixture-based workflows/tests are unaffected unless a real incident_id
-    is actually passed."""
-    use_gateway = source == "gateway" or (source == "auto" and not (fixtures_root / incident_id).exists())
-    if not use_gateway:
-        return FixtureContextProvider(fixtures_root)
-
-    if not config.INCIDENT_GATEWAY_URL or not config.INCIDENT_GATEWAY_API_KEY:
-        print(
-            f"error: incident_id {incident_id!r} not found under {fixtures_root} and "
-            "INCIDENT_GATEWAY_URL/INCIDENT_GATEWAY_API_KEY are not set -- nothing to run against",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return GatewayContextProvider(config.INCIDENT_GATEWAY_URL, config.INCIDENT_GATEWAY_API_KEY)
-
-
-def _build_tools(provider: ContextProvider, incident_id: str) -> list:
-    if isinstance(provider, FixtureContextProvider):
-        fixtures_dir = provider.incident_dir(incident_id)
-        return [
-            PrometheusTool(FixturePrometheusBackend(fixtures_dir)),
-            LokiTool(FixtureLokiBackend(fixtures_dir)),
-            TempoTool(FixtureTempoBackend(fixtures_dir)),
-        ]
-
-    # Gateway-sourced incident: live investigation still goes through this
-    # repo's own telemetry clients (never the Gateway) -- only queried for
-    # whichever backends are actually configured.
-    tools: list = []
-    if config.PROMETHEUS_BASE_URL:
-        tools.append(PrometheusTool(PrometheusClient(config.PROMETHEUS_BASE_URL)))
-    if config.LOKI_BASE_URL:
-        tools.append(LokiTool(LokiClient(config.LOKI_BASE_URL)))
-    if config.TEMPO_BASE_URL:
-        tools.append(TempoTool(TempoClient(config.TEMPO_BASE_URL)))
-    return tools
-
-
-async def run_incident(
-    incident_id: str,
-    *,
-    llm_name: str,
-    fixtures_root: Path,
-    trajectory_dir: Path,
-    max_iterations: int,
-    source: str = "auto",
-) -> dict:
-    provider = _build_context_provider(incident_id, fixtures_root, source)
-    context = await provider.get_context(incident_id)
-
-    node_llms = _build_node_llms(llm_name)
-    tools = _build_tools(provider, incident_id)
-    trajectory = TrajectoryLogger(incident_id, trajectory_dir)
-
-    graph = build_graph(
-        node_llms["investigator"],
-        tools,
-        trajectory,
-        investigator_llm=node_llms["investigator"],
-        synthesizer_llm=node_llms["synthesizer"],
-        verifier_llm=node_llms["verifier"],
-        remediation_llm=node_llms["remediation"],
-    )
-    result = await graph.ainvoke(initial_state(context, max_iterations=max_iterations))
-    result = finalize_status(result)
-
-    _print_trajectory(trajectory)
-    _print_verdict(result)
-    print(f"\nFull trajectory written to: {trajectory.path}")
-
-    return result
-
-
-def _load_processed_incidents(state_file: Path) -> Set[str]:
-    if not state_file.exists():
-        return set()
-    try:
-        return set(json.loads(state_file.read_text()))
-    except (json.JSONDecodeError, OSError):
-        return set()
-
-
-def _save_processed_incidents(state_file: Path, processed: Set[str]) -> None:
-    state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(json.dumps(sorted(processed), indent=2))
 
 
 async def _fetch_ready_incident_ids(base_url: str, api_key: str, timeout_seconds: float = 10.0) -> List[str]:
@@ -360,7 +149,20 @@ async def watch_incidents(
         await _poll_loop()
         return
 
-    app = create_app(trajectory_dir, agent_api_key)
+    app = create_app(
+        trajectory_dir,
+        agent_api_key,
+        llm_name=llm_name,
+        fixtures_root=fixtures_root,
+        max_iterations=max_iterations,
+        state_file=state_file,
+        # The *same* set object _poll_loop's closure above holds a
+        # reference to, not a copy -- see create_app's docstring. A manual
+        # trigger's `processed.add(incident_id)` is then immediately
+        # visible to _poll_loop's own `if incident_id in processed` check
+        # on its very next iteration, no reload-from-disk needed.
+        processed_incidents=processed,
+    )
     server = uvicorn.Server(uvicorn.Config(app, host=agent_api_host, port=agent_api_port, log_level="warning"))
     print(f"watch: serving investigation API on http://{agent_api_host}:{agent_api_port}")
 
@@ -454,16 +256,23 @@ def main(argv=None) -> None:
     args = parser.parse_args(argv)
 
     if args.command == "run":
-        asyncio.run(
-            run_incident(
-                args.incident_id,
-                llm_name=args.llm,
-                fixtures_root=args.fixtures_dir,
-                trajectory_dir=args.trajectory_dir,
-                max_iterations=args.max_iterations,
-                source=args.source,
+        try:
+            result, trajectory = asyncio.run(
+                run_incident(
+                    args.incident_id,
+                    llm_name=args.llm,
+                    fixtures_root=args.fixtures_dir,
+                    trajectory_dir=args.trajectory_dir,
+                    max_iterations=args.max_iterations,
+                    source=args.source,
+                )
             )
-        )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        _print_trajectory(trajectory)
+        _print_verdict(result)
+        print(f"\nFull trajectory written to: {trajectory.path}")
     elif args.command == "watch":
         if not config.INCIDENT_GATEWAY_URL or not config.INCIDENT_GATEWAY_API_KEY:
             print(
