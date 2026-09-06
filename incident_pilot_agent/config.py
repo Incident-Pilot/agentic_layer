@@ -93,6 +93,19 @@ INCIDENT_GATEWAY_API_KEY = os.environ.get("INCIDENT_GATEWAY_API_KEY")
 
 DEFAULT_MAX_ITERATIONS = int(os.environ.get("INCIDENT_PILOT_MAX_ITERATIONS", "4"))
 
+# Email notification (agents/notifier.py) -- sent for a CONFIRMED, actionable
+# hypothesis right after the remediation planner, via Brevo's REST API
+# (https://api.brevo.com/v3/smtp/email), not SMTP -- same httpx-based REST
+# pattern every other external call in this repo already uses (LLM
+# providers, GatewayContextProvider). All three unset by default -- purely
+# additive, the notifier node skips itself (logged, not an error) unless
+# all three are set. BREVO_SENDER_EMAIL must be a verified sender in your
+# Brevo account (Settings -> Senders & IP); NOTIFICATION_EMAIL_TO is the
+# single recipient for this stage, no verification needed on that end.
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
+BREVO_SENDER_EMAIL = os.environ.get("BREVO_SENDER_EMAIL")
+NOTIFICATION_EMAIL_TO = os.environ.get("NOTIFICATION_EMAIL_TO")
+
 # Read-only investigation API (incident_pilot_agent/api/) -- serves the
 # incident-pilot-dashboard repo. Runs in the same process as `watch`. Port
 # defaults to 8100, distinct from the Gateway's 8000. AGENT_API_KEY is a

@@ -6,7 +6,9 @@ LLM-backed agents — Investigator, Synthesizer, Verifier, a Remediation
 Planner, and a Post-Mortem Agent — that query telemetry (Prometheus/Loki/
 Tempo), form and verify a root-cause hypothesis, propose a remediation
 plan, and (for a CONFIRMED, actionable hypothesis) generate a structured,
-blameless post-mortem.
+blameless post-mortem. A CONFIRMED, actionable hypothesis also triggers an
+email notification (root cause + remediation plan) via Brevo's REST API,
+if configured.
 
 This repo is local-first: no Postgres/pgvector, no Kubernetes config, no
 deployment target. It runs entirely on a developer machine against fixtures,
@@ -24,7 +26,8 @@ Gateway.
 | [incident_pilot_agent/pipeline.py](incident_pilot_agent/pipeline.py) | Shared pipeline used by `run`, `watch`, and the API's trigger route |
 | [incident_pilot_agent/config.py](incident_pilot_agent/config.py) | Env-driven configuration (loads `.env` via `python-dotenv`) |
 | [incident_pilot_agent/graph/](incident_pilot_agent/graph/) | LangGraph state machine wiring the agents together |
-| [incident_pilot_agent/agents/](incident_pilot_agent/agents/) | Investigator, Synthesizer, Verifier, Remediation Planner, Post-Mortem Agent, orchestrator, prompts |
+| [incident_pilot_agent/agents/](incident_pilot_agent/agents/) | Investigator, Synthesizer, Verifier, Remediation Planner, Notifier, Post-Mortem Agent, orchestrator, prompts |
+| [incident_pilot_agent/notifications/](incident_pilot_agent/notifications/) | Brevo REST API client for incident notification emails |
 | [incident_pilot_agent/llm/](incident_pilot_agent/llm/) | LLM client adapters: Anthropic, OpenAI, Gemini, OpenRouter, Bedrock, and a fake client for tests |
 | [incident_pilot_agent/context_provider/](incident_pilot_agent/context_provider/) | Loads `IncidentContext` from local fixtures or a live Gateway |
 | [incident_pilot_agent/telemetry/](incident_pilot_agent/telemetry/) | Prometheus/Loki/Tempo clients (real and fixture-backed) |

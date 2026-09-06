@@ -11,10 +11,10 @@ conditional edge after verifier that routes to the remediation planner only
 on a genuine CONFIRMED verdict for an actionable hypothesis, ends the run
 at ROOT_CAUSE_CONFIRMED for a CONFIRMED-but-not-actionable null finding,
 loops back to orchestrator (REJECTED, iteration budget remaining), or ends
-as ESCALATED (REJECTED, budget exhausted). The post-mortem agent runs
-unconditionally after the remediation planner -- it shares that node's
-actionable-CONFIRMED gate simply by being downstream of it, not via its own
-conditional edge.
+as ESCALATED (REJECTED, budget exhausted). The notifier and post-mortem
+agent both run unconditionally after the remediation planner -- they share
+that node's actionable-CONFIRMED gate simply by being downstream of it, not
+via their own conditional edges.
 """
 
 from typing import Optional
@@ -22,6 +22,7 @@ from typing import Optional
 from langgraph.graph import END, StateGraph
 
 from ..agents.investigator import ApplicationInvestigationAgent
+from ..agents.notifier import Notifier
 from ..agents.orchestrator import Orchestrator
 from ..agents.postmortem import PostMortemAgent
 from ..agents.remediation_planner import RemediationPlanner
@@ -69,6 +70,7 @@ def build_graph(
     synthesizer = HypothesisSynthesizer(synthesizer_llm or llm, trajectory)
     verifier = VerificationAgent(verifier_llm or llm, tools, trajectory)
     remediation_planner = RemediationPlanner(remediation_llm or llm, trajectory)
+    notifier = Notifier(trajectory)
     postmortem_agent = PostMortemAgent(postmortem_llm or llm, trajectory)
 
     graph = StateGraph(AgentState)
@@ -77,6 +79,7 @@ def build_graph(
     graph.add_node("synthesizer", synthesizer)
     graph.add_node("verifier", verifier)
     graph.add_node("remediation_planner", remediation_planner)
+    graph.add_node("notifier", notifier)
     graph.add_node("postmortem_agent", postmortem_agent)
 
     graph.set_entry_point("orchestrator")
@@ -97,7 +100,8 @@ def build_graph(
             "replan": "orchestrator",
         },
     )
-    graph.add_edge("remediation_planner", "postmortem_agent")
+    graph.add_edge("remediation_planner", "notifier")
+    graph.add_edge("notifier", "postmortem_agent")
     graph.add_edge("postmortem_agent", END)
 
     return graph.compile()
