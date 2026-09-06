@@ -49,6 +49,10 @@ VERIFIER_MODEL = os.environ.get("VERIFIER_MODEL", OPENROUTER_MODEL)
 # No remediation graph node exists yet (see graph/build.py) -- this is
 # reserved so the config surface is already in place when one lands.
 REMEDIATION_MODEL = os.environ.get("REMEDIATION_MODEL", OPENROUTER_MODEL)
+# For the post-mortem node (agents/postmortem.py), reached right after
+# remediation on a CONFIRMED + actionable hypothesis -- same reasoning as
+# REMEDIATION_MODEL above.
+POSTMORTEM_MODEL = os.environ.get("POSTMORTEM_MODEL", OPENROUTER_MODEL)
 
 # Bedrock, reached via the Mantle gateway, speaks the same OpenAI Chat
 # Completions wire format as OpenRouter -- same OpenAILLMClient, different
@@ -71,6 +75,7 @@ BEDROCK_INVESTIGATOR_MODEL = os.environ.get("BEDROCK_INVESTIGATOR_MODEL", BEDROC
 BEDROCK_SYNTHESIZER_MODEL = os.environ.get("BEDROCK_SYNTHESIZER_MODEL", BEDROCK_MODEL)
 BEDROCK_VERIFIER_MODEL = os.environ.get("BEDROCK_VERIFIER_MODEL", BEDROCK_MODEL)
 BEDROCK_REMEDIATION_MODEL = os.environ.get("BEDROCK_REMEDIATION_MODEL", BEDROCK_MODEL)
+BEDROCK_POSTMORTEM_MODEL = os.environ.get("BEDROCK_POSTMORTEM_MODEL", BEDROCK_MODEL)
 
 # Optional: point at a real read-only observability stack instead of
 # fixtures. Unset by default -- FixtureContextProvider + fixture-backed

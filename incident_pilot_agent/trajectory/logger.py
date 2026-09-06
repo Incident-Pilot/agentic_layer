@@ -44,6 +44,12 @@ class RemediationActionLogEntry(BaseModel):
     rationale: str
 
 
+class PostMortemActionItemLogEntry(BaseModel):
+    description: str
+    category: str
+    priority: str
+
+
 class TrajectoryEntry(BaseModel):
     sequence: int
     timestamp: datetime
@@ -80,6 +86,15 @@ class TrajectoryEntry(BaseModel):
     # file is sufficient on its own to answer "what remediation plan was
     # proposed" -- see incident_pilot_agent/api/.
     remediation_actions: List[RemediationActionLogEntry] = Field(default_factory=list)
+
+    # Additive, same pattern again: set only by agents/postmortem.py's own
+    # entry, so a trajectory file is sufficient on its own to answer "what
+    # post-mortem was generated" -- see incident_pilot_agent/api/.
+    postmortem_summary: Optional[str] = None
+    postmortem_impact: Optional[str] = None
+    postmortem_contributing_factors: List[str] = Field(default_factory=list)
+    postmortem_action_items: List[PostMortemActionItemLogEntry] = Field(default_factory=list)
+    postmortem_lessons_learned: List[str] = Field(default_factory=list)
 
 
 class TrajectoryLogger:
@@ -118,6 +133,11 @@ class TrajectoryLogger:
         hypothesis_affected_services: Optional[List[str]] = None,
         hypothesis_actionable: Optional[bool] = None,
         remediation_actions: Optional[List[Dict[str, Any]]] = None,
+        postmortem_summary: Optional[str] = None,
+        postmortem_impact: Optional[str] = None,
+        postmortem_contributing_factors: Optional[List[str]] = None,
+        postmortem_action_items: Optional[List[Dict[str, Any]]] = None,
+        postmortem_lessons_learned: Optional[List[str]] = None,
     ) -> TrajectoryEntry:
         self._sequence += 1
         entry = TrajectoryEntry(
@@ -149,6 +169,11 @@ class TrajectoryLogger:
             hypothesis_affected_services=hypothesis_affected_services or [],
             hypothesis_actionable=hypothesis_actionable,
             remediation_actions=[RemediationActionLogEntry(**a) for a in (remediation_actions or [])],
+            postmortem_summary=postmortem_summary,
+            postmortem_impact=postmortem_impact,
+            postmortem_contributing_factors=postmortem_contributing_factors or [],
+            postmortem_action_items=[PostMortemActionItemLogEntry(**a) for a in (postmortem_action_items or [])],
+            postmortem_lessons_learned=postmortem_lessons_learned or [],
         )
         self._entries.append(entry)
         self._flush()

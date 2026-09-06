@@ -4,7 +4,7 @@ import pytest
 
 from incident_pilot_agent.context_provider.fixture_provider import FixtureContextProvider
 from incident_pilot_agent.graph.build import build_graph, finalize_status, initial_state
-from incident_pilot_agent.graph.state import PHASE_REMEDIATION_PROPOSED
+from incident_pilot_agent.graph.state import PHASE_POSTMORTEM_GENERATED
 from incident_pilot_agent.llm.fake_client import FakeLLMClient
 from incident_pilot_agent.models.verification import VerificationVerdict
 from incident_pilot_agent.telemetry.fixture_backends import FixtureLokiBackend, FixturePrometheusBackend, FixtureTempoBackend
@@ -59,10 +59,12 @@ async def test_cascading_failure_fixture_requires_a_rejection_and_replan_cycle(t
     # A confirmed redis-cascade root cause is a genuine, actionable problem
     # (Hypothesis.actionable defaults True for FakeLLMClient's synthesized
     # hypotheses here), so the graph continues past ROOT_CAUSE_CONFIRMED
-    # into the remediation planner -- see test_remediation_planner.py for
-    # the dedicated actionable-vs-not routing tests.
-    assert result["phase"] == PHASE_REMEDIATION_PROPOSED
+    # into the remediation planner and then the post-mortem agent -- see
+    # test_remediation_planner.py for the dedicated actionable-vs-not
+    # routing tests.
+    assert result["phase"] == PHASE_POSTMORTEM_GENERATED
     assert result["remediation_plan"] is not None
+    assert result["postmortem_report"] is not None
     assert result["iteration"] >= 2, "expected at least one replanning round"
 
     verdicts = [v.verdict for v in result["verifications"]]

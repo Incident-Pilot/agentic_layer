@@ -2,9 +2,11 @@
 
 An autonomous incident-investigation agent. Given an incident (from a local
 fixture or a live incident Gateway), it runs a LangGraph pipeline of
-LLM-backed agents — Investigator, Synthesizer, Verifier, and a Remediation
-Planner — that query telemetry (Prometheus/Loki/Tempo), form and verify a
-root-cause hypothesis, and propose a remediation plan.
+LLM-backed agents — Investigator, Synthesizer, Verifier, a Remediation
+Planner, and a Post-Mortem Agent — that query telemetry (Prometheus/Loki/
+Tempo), form and verify a root-cause hypothesis, propose a remediation
+plan, and (for a CONFIRMED, actionable hypothesis) generate a structured,
+blameless post-mortem.
 
 This repo is local-first: no Postgres/pgvector, no Kubernetes config, no
 deployment target. It runs entirely on a developer machine against fixtures,
@@ -22,12 +24,12 @@ Gateway.
 | [incident_pilot_agent/pipeline.py](incident_pilot_agent/pipeline.py) | Shared pipeline used by `run`, `watch`, and the API's trigger route |
 | [incident_pilot_agent/config.py](incident_pilot_agent/config.py) | Env-driven configuration (loads `.env` via `python-dotenv`) |
 | [incident_pilot_agent/graph/](incident_pilot_agent/graph/) | LangGraph state machine wiring the agents together |
-| [incident_pilot_agent/agents/](incident_pilot_agent/agents/) | Investigator, Synthesizer, Verifier, Remediation Planner, orchestrator, prompts |
+| [incident_pilot_agent/agents/](incident_pilot_agent/agents/) | Investigator, Synthesizer, Verifier, Remediation Planner, Post-Mortem Agent, orchestrator, prompts |
 | [incident_pilot_agent/llm/](incident_pilot_agent/llm/) | LLM client adapters: Anthropic, OpenAI, Gemini, OpenRouter, Bedrock, and a fake client for tests |
 | [incident_pilot_agent/context_provider/](incident_pilot_agent/context_provider/) | Loads `IncidentContext` from local fixtures or a live Gateway |
 | [incident_pilot_agent/telemetry/](incident_pilot_agent/telemetry/) | Prometheus/Loki/Tempo clients (real and fixture-backed) |
 | [incident_pilot_agent/tools/](incident_pilot_agent/tools/) | Tool wrappers over telemetry clients, exposed to the Investigator agent |
-| [incident_pilot_agent/models/](incident_pilot_agent/models/) | Typed models: context, evidence, hypothesis, verification, remediation |
+| [incident_pilot_agent/models/](incident_pilot_agent/models/) | Typed models: context, evidence, hypothesis, verification, remediation, postmortem |
 | [incident_pilot_agent/api/](incident_pilot_agent/api/) | Read-only FastAPI investigation API (serves a dashboard) |
 | [incident_pilot_agent/trajectory/](incident_pilot_agent/trajectory/) | Trajectory logger — records each agent round to `trajectories/` |
 | [fixtures/incidents/](fixtures/incidents/) | Local fixture incidents used for `--source fixtures` / `--llm fake` runs |

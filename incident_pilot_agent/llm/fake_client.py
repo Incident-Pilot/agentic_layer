@@ -28,6 +28,10 @@ non-fixture-specific heuristics per task:
   targeting the hypothesis's first affected service -- only ever reached
   in a test/fake run when a hypothesis is both CONFIRMED and actionable,
   so there is no branching to simulate here.
+- generate-postmortem: always produces one summary/impact sentence derived
+  from the hypothesis and one "detect" action item derived from the
+  proposed remediation -- only ever reached right after propose-remediation
+  in the same run, so there is likewise no branching to simulate here.
 
 A real LLMClient (AnthropicLLMClient) makes all of these judgment calls
 via genuine reasoning instead.
@@ -111,6 +115,8 @@ class FakeLLMClient(LLMClient):
             return self._verify_decide(_extract_json(_last_user_text(messages)))
         if task == "propose-remediation":
             return self._propose_remediation(_extract_json(_last_user_text(messages)))
+        if task == "generate-postmortem":
+            return self._generate_postmortem(_extract_json(_last_user_text(messages)))
 
         raise ValueError(f"FakeLLMClient: unrecognized task {task!r}")
 
@@ -331,3 +337,32 @@ class FakeLLMClient(LLMClient):
             "rationale": hypothesis.get("root_cause") or "Confirmed root cause requires remediation.",
         }
         return LLMResponse(content=json.dumps({"actions": [action]}))
+
+    @staticmethod
+    def _generate_postmortem(payload: Dict[str, Any]) -> LLMResponse:
+        hypothesis = payload.get("hypothesis", {})
+        root_cause = hypothesis.get("root_cause") or "an undetermined root cause"
+        services = hypothesis.get("affected_services") or ["unknown-service"]
+        remediation_actions = payload.get("remediation_actions", [])
+        action_item = {
+            "description": (
+                f"Add alerting on the signal that first surfaced this incident on {services[0]} so a "
+                "recurrence is caught before it cascades."
+            ),
+            "category": "detect",
+            "priority": "medium",
+        }
+        return LLMResponse(
+            content=json.dumps(
+                {
+                    "summary": f"Incident on {', '.join(services)} was traced to: {root_cause}.",
+                    "impact": f"Affected service(s): {', '.join(services)}.",
+                    "contributing_factors": [root_cause],
+                    "action_items": [action_item],
+                    "lessons_learned": [
+                        f"{len(remediation_actions)} remediation action(s) were required to recover; "
+                        "earlier detection would have reduced impact."
+                    ],
+                }
+            )
+        )

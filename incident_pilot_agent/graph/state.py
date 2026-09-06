@@ -10,6 +10,7 @@ from typing import Annotated, List, Optional, TypedDict
 from ..models.context import IncidentContext
 from ..models.evidence import Evidence
 from ..models.hypothesis import Hypothesis
+from ..models.postmortem import PostMortemReport
 from ..models.remediation import RemediationPlan
 from ..models.verification import Verification
 
@@ -21,6 +22,7 @@ PHASE_ROOT_CAUSE_CONFIRMED = "ROOT_CAUSE_CONFIRMED"
 PHASE_VERIFICATION_FAILED = "VERIFICATION_FAILED"
 PHASE_ESCALATED = "ESCALATED"
 PHASE_REMEDIATION_PROPOSED = "REMEDIATION_PROPOSED"
+PHASE_POSTMORTEM_GENERATED = "POSTMORTEM_GENERATED"
 
 
 class AgentState(TypedDict):
@@ -45,3 +47,8 @@ class AgentState(TypedDict):
     # None on every other path, including a genuine null-finding
     # confirmation and the escalated/rejected paths.
     remediation_plan: Optional[RemediationPlan]
+
+    # Set only by the post-mortem node, which only ever runs right after
+    # remediation_plan is set (same actionable-CONFIRMED gate -- see
+    # graph/build.py). Remains None on every other path.
+    postmortem_report: Optional[PostMortemReport]

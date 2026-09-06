@@ -65,7 +65,13 @@ def test_trigger_valid_ready_incident_returns_202_and_runs_a_real_investigation(
         # disk each call, so polling it doesn't need to touch the
         # portal's event loop / asyncio.Task at all.
         detail = _wait_until(lambda: reader.get_investigation(trajectory_dir, "inc-001-redis-cascade"))
-        assert detail.phase in ("ROOT_CAUSE_CONFIRMED", "REMEDIATION_PROPOSED", "ESCALATED", "VERIFICATION_FAILED")
+        assert detail.phase in (
+            "ROOT_CAUSE_CONFIRMED",
+            "REMEDIATION_PROPOSED",
+            "POSTMORTEM_GENERATED",
+            "ESCALATED",
+            "VERIFICATION_FAILED",
+        )
 
         # And it's marked processed, so watch's own poll loop (sharing
         # this state file) wouldn't redundantly re-dispatch it.

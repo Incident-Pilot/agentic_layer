@@ -29,6 +29,7 @@ def test_node_models_fall_back_to_openrouter_model_when_unset(monkeypatch):
     monkeypatch.delenv("SYNTHESIZER_MODEL", raising=False)
     monkeypatch.delenv("VERIFIER_MODEL", raising=False)
     monkeypatch.delenv("REMEDIATION_MODEL", raising=False)
+    monkeypatch.delenv("POSTMORTEM_MODEL", raising=False)
     monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
     _reload_config_with_dotenv_disabled(monkeypatch)
     try:
@@ -37,6 +38,7 @@ def test_node_models_fall_back_to_openrouter_model_when_unset(monkeypatch):
         assert config.SYNTHESIZER_MODEL == "openai/gpt-4o-mini"
         assert config.VERIFIER_MODEL == "openai/gpt-4o-mini"
         assert config.REMEDIATION_MODEL == "openai/gpt-4o-mini"
+        assert config.POSTMORTEM_MODEL == "openai/gpt-4o-mini"
     finally:
         _restore_real_config(monkeypatch)
 
@@ -48,6 +50,7 @@ def test_node_models_fall_back_to_a_custom_openrouter_model_when_unset(monkeypat
     monkeypatch.delenv("SYNTHESIZER_MODEL", raising=False)
     monkeypatch.delenv("VERIFIER_MODEL", raising=False)
     monkeypatch.delenv("REMEDIATION_MODEL", raising=False)
+    monkeypatch.delenv("POSTMORTEM_MODEL", raising=False)
     monkeypatch.setenv("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5")
     _reload_config_with_dotenv_disabled(monkeypatch)
     try:
@@ -55,6 +58,7 @@ def test_node_models_fall_back_to_a_custom_openrouter_model_when_unset(monkeypat
         assert config.SYNTHESIZER_MODEL == "anthropic/claude-haiku-4.5"
         assert config.VERIFIER_MODEL == "anthropic/claude-haiku-4.5"
         assert config.REMEDIATION_MODEL == "anthropic/claude-haiku-4.5"
+        assert config.POSTMORTEM_MODEL == "anthropic/claude-haiku-4.5"
     finally:
         _restore_real_config(monkeypatch)
 
@@ -65,12 +69,14 @@ def test_node_models_override_independently_when_set(monkeypatch):
     monkeypatch.setenv("SYNTHESIZER_MODEL", "anthropic/claude-sonnet-5")
     monkeypatch.setenv("VERIFIER_MODEL", "anthropic/claude-sonnet-5")
     monkeypatch.setenv("REMEDIATION_MODEL", "anthropic/claude-sonnet-5")
+    monkeypatch.setenv("POSTMORTEM_MODEL", "anthropic/claude-sonnet-5")
     _reload_config_with_dotenv_disabled(monkeypatch)
     try:
         assert config.INVESTIGATOR_MODEL == "openai/gpt-4o-mini"
         assert config.SYNTHESIZER_MODEL == "anthropic/claude-sonnet-5"
         assert config.VERIFIER_MODEL == "anthropic/claude-sonnet-5"
         assert config.REMEDIATION_MODEL == "anthropic/claude-sonnet-5"
+        assert config.POSTMORTEM_MODEL == "anthropic/claude-sonnet-5"
         # each var is independent -- overriding one must not affect the others'
         # fallback to OPENROUTER_MODEL
         assert config.OPENROUTER_MODEL == "openai/gpt-4o-mini"
@@ -99,6 +105,7 @@ def test_bedrock_node_models_fall_back_to_bedrock_model_when_unset(monkeypatch):
     monkeypatch.delenv("BEDROCK_SYNTHESIZER_MODEL", raising=False)
     monkeypatch.delenv("BEDROCK_VERIFIER_MODEL", raising=False)
     monkeypatch.delenv("BEDROCK_REMEDIATION_MODEL", raising=False)
+    monkeypatch.delenv("BEDROCK_POSTMORTEM_MODEL", raising=False)
     monkeypatch.delenv("BEDROCK_MODEL", raising=False)
     _reload_config_with_dotenv_disabled(monkeypatch)
     try:
@@ -107,6 +114,7 @@ def test_bedrock_node_models_fall_back_to_bedrock_model_when_unset(monkeypatch):
         assert config.BEDROCK_SYNTHESIZER_MODEL == "moonshotai.kimi-k2.5"
         assert config.BEDROCK_VERIFIER_MODEL == "moonshotai.kimi-k2.5"
         assert config.BEDROCK_REMEDIATION_MODEL == "moonshotai.kimi-k2.5"
+        assert config.BEDROCK_POSTMORTEM_MODEL == "moonshotai.kimi-k2.5"
     finally:
         _restore_real_config(monkeypatch)
 
@@ -117,12 +125,14 @@ def test_bedrock_node_models_override_independently_when_set(monkeypatch):
     monkeypatch.setenv("BEDROCK_SYNTHESIZER_MODEL", "anthropic.claude-sonnet-5")
     monkeypatch.setenv("BEDROCK_VERIFIER_MODEL", "anthropic.claude-sonnet-5")
     monkeypatch.setenv("BEDROCK_REMEDIATION_MODEL", "anthropic.claude-sonnet-5")
+    monkeypatch.setenv("BEDROCK_POSTMORTEM_MODEL", "anthropic.claude-sonnet-5")
     _reload_config_with_dotenv_disabled(monkeypatch)
     try:
         assert config.BEDROCK_INVESTIGATOR_MODEL == "anthropic.claude-haiku-4-5"
         assert config.BEDROCK_SYNTHESIZER_MODEL == "anthropic.claude-sonnet-5"
         assert config.BEDROCK_VERIFIER_MODEL == "anthropic.claude-sonnet-5"
         assert config.BEDROCK_REMEDIATION_MODEL == "anthropic.claude-sonnet-5"
+        assert config.BEDROCK_POSTMORTEM_MODEL == "anthropic.claude-sonnet-5"
         # each var is independent -- overriding one must not affect the
         # others' fallback to BEDROCK_MODEL
         assert config.BEDROCK_MODEL == "moonshotai.kimi-k2.5"
@@ -136,10 +146,12 @@ def test_node_models_for_selects_provider_specific_config():
         "synthesizer": config.SYNTHESIZER_MODEL,
         "verifier": config.VERIFIER_MODEL,
         "remediation": config.REMEDIATION_MODEL,
+        "postmortem": config.POSTMORTEM_MODEL,
     }
     assert cli._node_models_for("bedrock") == {
         "investigator": config.BEDROCK_INVESTIGATOR_MODEL,
         "synthesizer": config.BEDROCK_SYNTHESIZER_MODEL,
         "verifier": config.BEDROCK_VERIFIER_MODEL,
         "remediation": config.BEDROCK_REMEDIATION_MODEL,
+        "postmortem": config.BEDROCK_POSTMORTEM_MODEL,
     }

@@ -14,7 +14,7 @@ import pytest
 
 from incident_pilot_agent.context_provider.fixture_provider import FixtureContextProvider
 from incident_pilot_agent.graph.build import build_graph, finalize_status, initial_state
-from incident_pilot_agent.graph.state import PHASE_ESCALATED, PHASE_REMEDIATION_PROPOSED, PHASE_ROOT_CAUSE_CONFIRMED
+from incident_pilot_agent.graph.state import PHASE_ESCALATED, PHASE_POSTMORTEM_GENERATED, PHASE_ROOT_CAUSE_CONFIRMED
 from incident_pilot_agent.llm.base import LLMClient, LLMResponse
 from incident_pilot_agent.llm.fake_client import FakeLLMClient, _extract_json, _last_user_text
 from incident_pilot_agent.telemetry.fixture_backends import FixtureLokiBackend, FixturePrometheusBackend, FixtureTempoBackend
@@ -115,11 +115,15 @@ async def _run(incident_id: str, llm: LLMClient, tmp_path: Path, max_iterations:
 async def test_confirmed_actionable_hypothesis_reaches_remediation_proposed(tmp_path):
     """The real compiled graph, invoked exactly as cli.py does, must route
     a genuinely CONFIRMED + actionable hypothesis through the remediation
-    planner node -- not just a direct call to RemediationPlanner()."""
+    planner node -- not just a direct call to RemediationPlanner(). The
+    graph continues on from there into the post-mortem agent (see
+    test_postmortem_agent.py), so the run's final phase is
+    POSTMORTEM_GENERATED, not REMEDIATION_PROPOSED -- remediation_plan
+    being set is what proves the remediation planner itself ran."""
     result, trajectory = await _run("inc-002-db-pool-exhaustion", FakeLLMClient(), tmp_path)
 
     assert result["final_status"] == "CONFIRMED"
-    assert result["phase"] == PHASE_REMEDIATION_PROPOSED
+    assert result["phase"] == PHASE_POSTMORTEM_GENERATED
     assert result["remediation_plan"] is not None
     assert result["remediation_plan"].actions
 

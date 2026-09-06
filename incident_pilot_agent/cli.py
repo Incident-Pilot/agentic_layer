@@ -209,6 +209,24 @@ def _print_verdict(result: dict) -> None:
                 print(f"  - [{action.risk_level}] {action.action_type}: {action.description} (target: {action.target})")
                 print(f"    rationale: {action.rationale}")
             print(f"\n{plan.disclaimer}")
+
+        report = result.get("postmortem_report")
+        if report is not None:
+            print("\n=== Post-mortem ===")
+            print(f"Summary: {report.summary}")
+            print(f"Impact:  {report.impact}")
+            if report.contributing_factors:
+                print("Contributing factors:")
+                for factor in report.contributing_factors:
+                    print(f"  - {factor}")
+            if report.action_items:
+                print("Follow-up action items:")
+                for item in report.action_items:
+                    print(f"  - [{item.priority}/{item.category}] {item.description}")
+            if report.lessons_learned:
+                print("Lessons learned:")
+                for lesson in report.lessons_learned:
+                    print(f"  - {lesson}")
     else:
         print("\nNo hypothesis survived verification within the iteration budget. Rejected hypotheses:")
         for rejected in result["rejected_hypotheses"]:

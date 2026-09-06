@@ -18,6 +18,8 @@ from .schemas import (
     HypothesisSummary,
     InvestigationDetail,
     InvestigationListItem,
+    PostMortemActionItemSummary,
+    PostMortemSummary,
     RemediationActionSummary,
     RemediationPlanSummary,
 )
@@ -74,10 +76,28 @@ def _current_remediation_plan(entries: List[TrajectoryEntry], hypothesis_id: str
     return None
 
 
+def _current_postmortem(entries: List[TrajectoryEntry], hypothesis_id: str) -> Optional[PostMortemSummary]:
+    # Only agents/postmortem.py's own entries ever carry postmortem_summary
+    # -- absent (None) on every other agent's entry, same pattern as
+    # _current_remediation_plan above.
+    for entry in reversed(entries):
+        if entry.hypothesis_id == hypothesis_id and entry.agent == "postmortem" and entry.postmortem_summary:
+            return PostMortemSummary(
+                hypothesis_id=hypothesis_id,
+                summary=entry.postmortem_summary,
+                impact=entry.postmortem_impact or "",
+                contributing_factors=entry.postmortem_contributing_factors,
+                action_items=[PostMortemActionItemSummary(**a.model_dump()) for a in entry.postmortem_action_items],
+                lessons_learned=entry.postmortem_lessons_learned,
+            )
+    return None
+
+
 def _to_detail(incident_id: str, entries: List[TrajectoryEntry]) -> InvestigationDetail:
     last = entries[-1]
     hypothesis = _current_hypothesis(entries, last.hypothesis_id) if last.hypothesis_id else None
     remediation_plan = _current_remediation_plan(entries, last.hypothesis_id) if last.hypothesis_id else None
+    postmortem = _current_postmortem(entries, last.hypothesis_id) if last.hypothesis_id else None
     return InvestigationDetail(
         incident_id=incident_id,
         phase=last.phase,
@@ -88,6 +108,7 @@ def _to_detail(incident_id: str, entries: List[TrajectoryEntry]) -> Investigatio
         updated_at=last.timestamp,
         reasoning_summary=last.reasoning_summary,
         remediation_plan=remediation_plan,
+        postmortem=postmortem,
     )
 
 

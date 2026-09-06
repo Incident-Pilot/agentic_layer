@@ -130,12 +130,14 @@ def _node_models_for(llm_name: str) -> Dict[str, str]:
             "synthesizer": config.BEDROCK_SYNTHESIZER_MODEL,
             "verifier": config.BEDROCK_VERIFIER_MODEL,
             "remediation": config.BEDROCK_REMEDIATION_MODEL,
+            "postmortem": config.BEDROCK_POSTMORTEM_MODEL,
         }
     return {
         "investigator": config.INVESTIGATOR_MODEL,
         "synthesizer": config.SYNTHESIZER_MODEL,
         "verifier": config.VERIFIER_MODEL,
         "remediation": config.REMEDIATION_MODEL,
+        "postmortem": config.POSTMORTEM_MODEL,
     }
 
 
@@ -143,7 +145,7 @@ def _build_node_llms(llm_name: str) -> Dict[str, LLMClient]:
     node_models = _node_models_for(llm_name)
     return {
         node: _build_llm(llm_name, model=_node_model(llm_name, node_models[node]), node=node)
-        for node in ("investigator", "synthesizer", "verifier", "remediation")
+        for node in ("investigator", "synthesizer", "verifier", "remediation", "postmortem")
     }
 
 
@@ -237,6 +239,7 @@ async def run_incident(
         synthesizer_llm=node_llms["synthesizer"],
         verifier_llm=node_llms["verifier"],
         remediation_llm=node_llms["remediation"],
+        postmortem_llm=node_llms["postmortem"],
     )
     result = await graph.ainvoke(initial_state(context, max_iterations=max_iterations))
     result = finalize_status(result)

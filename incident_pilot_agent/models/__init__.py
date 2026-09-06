@@ -13,6 +13,7 @@ from .context import (
 )
 from .evidence import Evidence, EvidenceType
 from .hypothesis import Hypothesis, HypothesisStatus
+from .postmortem import PostMortemActionItem, PostMortemReport
 from .remediation import RemediationAction, RemediationPlan
 from .verification import Verification, VerificationVerdict
 
@@ -32,6 +33,8 @@ __all__ = [
     "EvidenceType",
     "Hypothesis",
     "HypothesisStatus",
+    "PostMortemActionItem",
+    "PostMortemReport",
     "RemediationAction",
     "RemediationPlan",
     "Verification",

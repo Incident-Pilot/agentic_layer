@@ -2,7 +2,7 @@
 
     DETECTED -> INVESTIGATING -> HYPOTHESIS_GENERATED -> VERIFYING
         -> ROOT_CAUSE_CONFIRMED
-            -> (if hypothesis.actionable) -> REMEDIATION_PROPOSED
+            -> (if hypothesis.actionable) -> REMEDIATION_PROPOSED -> POSTMORTEM_GENERATED
         -> (or) VERIFICATION_FAILED -> back to INVESTIGATING (replan)
         -> (or) ESCALATED (max iterations exceeded)
 
@@ -11,7 +11,10 @@ conditional edge after verifier that routes to the remediation planner only
 on a genuine CONFIRMED verdict for an actionable hypothesis, ends the run
 at ROOT_CAUSE_CONFIRMED for a CONFIRMED-but-not-actionable null finding,
 loops back to orchestrator (REJECTED, iteration budget remaining), or ends
-as ESCALATED (REJECTED, budget exhausted).
+as ESCALATED (REJECTED, budget exhausted). The post-mortem agent runs
+unconditionally after the remediation planner -- it shares that node's
+actionable-CONFIRMED gate simply by being downstream of it, not via its own
+conditional edge.
 """
 
 from typing import Optional
@@ -20,6 +23,7 @@ from langgraph.graph import END, StateGraph
 
 from ..agents.investigator import ApplicationInvestigationAgent
 from ..agents.orchestrator import Orchestrator
+from ..agents.postmortem import PostMortemAgent
 from ..agents.remediation_planner import RemediationPlanner
 from ..agents.synthesizer import HypothesisSynthesizer
 from ..agents.verifier import VerificationAgent
@@ -52,18 +56,20 @@ def build_graph(
     synthesizer_llm: Optional[LLMClient] = None,
     verifier_llm: Optional[LLMClient] = None,
     remediation_llm: Optional[LLMClient] = None,
+    postmortem_llm: Optional[LLMClient] = None,
 ):
     """`llm` is the shared default; investigator_llm/synthesizer_llm/
-    verifier_llm/remediation_llm each override it for that one node only, so
-    a caller that wants tiered models (see cli.py's per-node
-    OPENROUTER_MODEL overrides) can pass distinct clients while every
-    existing call site that just passes `llm` keeps working unchanged --
-    purely additive."""
+    verifier_llm/remediation_llm/postmortem_llm each override it for that
+    one node only, so a caller that wants tiered models (see cli.py's
+    per-node OPENROUTER_MODEL overrides) can pass distinct clients while
+    every existing call site that just passes `llm` keeps working
+    unchanged -- purely additive."""
     orchestrator = Orchestrator(trajectory)
     investigator = ApplicationInvestigationAgent(investigator_llm or llm, tools, trajectory)
     synthesizer = HypothesisSynthesizer(synthesizer_llm or llm, trajectory)
     verifier = VerificationAgent(verifier_llm or llm, tools, trajectory)
     remediation_planner = RemediationPlanner(remediation_llm or llm, trajectory)
+    postmortem_agent = PostMortemAgent(postmortem_llm or llm, trajectory)
 
     graph = StateGraph(AgentState)
     graph.add_node("orchestrator", orchestrator)
@@ -71,6 +77,7 @@ def build_graph(
     graph.add_node("synthesizer", synthesizer)
     graph.add_node("verifier", verifier)
     graph.add_node("remediation_planner", remediation_planner)
+    graph.add_node("postmortem_agent", postmortem_agent)
 
     graph.set_entry_point("orchestrator")
     # Orchestrator's dispatch_targets is a list so adding a second
@@ -90,7 +97,8 @@ def build_graph(
             "replan": "orchestrator",
         },
     )
-    graph.add_edge("remediation_planner", END)
+    graph.add_edge("remediation_planner", "postmortem_agent")
+    graph.add_edge("postmortem_agent", END)
 
     return graph.compile()
 
@@ -109,6 +117,7 @@ def initial_state(incident_context, max_iterations: int = 4) -> AgentState:
         max_iterations=max_iterations,
         final_status=None,
         remediation_plan=None,
+        postmortem_report=None,
     )
 
 

@@ -36,6 +36,21 @@ class RemediationPlanSummary(BaseModel):
     disclaimer: str = REMEDIATION_DISCLAIMER
 
 
+class PostMortemActionItemSummary(BaseModel):
+    description: str
+    category: str
+    priority: str
+
+
+class PostMortemSummary(BaseModel):
+    hypothesis_id: str
+    summary: str
+    impact: str
+    contributing_factors: List[str]
+    action_items: List[PostMortemActionItemSummary]
+    lessons_learned: List[str]
+
+
 class InvestigationDetail(BaseModel):
     incident_id: str
     phase: str
@@ -48,6 +63,10 @@ class InvestigationDetail(BaseModel):
     # None on every path except a CONFIRMED, actionable hypothesis that
     # reached the remediation planner node -- see graph/build.py.
     remediation_plan: Optional[RemediationPlanSummary] = None
+    # None on every path except a CONFIRMED, actionable hypothesis that
+    # reached the post-mortem node (always right after remediation_plan is
+    # set) -- see graph/build.py.
+    postmortem: Optional[PostMortemSummary] = None
 
 
 class InvestigationTriggerResponse(BaseModel):
